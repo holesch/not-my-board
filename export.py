@@ -27,10 +27,16 @@ def build_rep_devlist(sysfs_path):
     def attr_int(name):
         return int((attr_dir / name).read_text())
 
-    def attr_hex(name):
-        return int((attr_dir / name).read_text(), base=16)
+    def attr_hex(name, default=None):
+        try:
+            return int((attr_dir / name).read_text(), base=16)
+        except ValueError:
+            if default is not None:
+                return default
+            else:
+                raise
 
-    num_if = attr_hex('bNumInterfaces')
+    num_if = attr_hex('bNumInterfaces', default=0) # can be empty
 
     rep_vals = [
         ('H', PROTOCOL_VERSION),
@@ -52,7 +58,7 @@ def build_rep_devlist(sysfs_path):
         ('B', attr_hex('bDeviceClass')),
         ('B', attr_hex('bDeviceSubClass')),
         ('B', attr_hex('bDeviceProtocol')),
-        ('B', attr_hex('bConfigurationValue')),
+        ('B', attr_hex('bConfigurationValue', default=0)), # can be empty
         ('B', attr_hex('bNumConfigurations')),
         ('B', num_if),
     ]
@@ -74,8 +80,14 @@ def build_rep_import(sysfs_path):
     def attr_int(name):
         return int((sysfs_path / name).read_text())
 
-    def attr_hex(name):
-        return int((sysfs_path / name).read_text(), base=16)
+    def attr_hex(name, default=None):
+        try:
+            return int((sysfs_path / name).read_text(), base=16)
+        except ValueError:
+            if default is not None:
+                return default
+            else:
+                raise
 
     rep_vals = [
         ('H', PROTOCOL_VERSION),
@@ -96,9 +108,9 @@ def build_rep_import(sysfs_path):
         ('B', attr_hex('bDeviceClass')),
         ('B', attr_hex('bDeviceSubClass')),
         ('B', attr_hex('bDeviceProtocol')),
-        ('B', attr_hex('bConfigurationValue')),
+        ('B', attr_hex('bConfigurationValue', default=0)), # can be empty
         ('B', attr_hex('bNumConfigurations')),
-        ('B', attr_hex('bNumInterfaces')),
+        ('B', attr_hex('bNumInterfaces', default=0)), # can be empty
     ]
 
     format_str = "".join(map(operator.itemgetter(0), rep_vals))
