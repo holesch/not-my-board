@@ -12,120 +12,68 @@ REQ_IMPORT_CODE = 0x8003
 REP_IMPORT_CODE = 0x0003
 REQ_DEVLIST_CODE = 0x8005
 REP_DEVLIST_CODE = 0x0005
-
-def attr_speed(sysfs_path):
-    return {
-        "1.5\n": 1,
-        "12\n": 2,
-        "480\n": 3,
-        "53.3-480\n": 4,
-        "5000\n": 5,
-    }.get((sysfs_path / 'speed').read_text(), 0)
+STATUS_AVAILABLE = 1
 
 def build_rep_devlist(sysfs_path):
-    attr_dir = sysfs_path
-    def attr_int(name):
-        return int((attr_dir / name).read_text())
-
-    def attr_hex(name, default=None):
-        try:
-            return int((attr_dir / name).read_text(), base=16)
-        except ValueError:
-            if default is not None:
-                return default
-            else:
-                raise
-
-    num_if = attr_hex('bNumInterfaces', default=0) # can be empty
-
-    rep_vals = [
+    struct_desc = [
         ('H', PROTOCOL_VERSION),
         ('H', REP_DEVLIST_CODE),
         ('I', 0), # status
         ('I', 1), # n_devices
 
-        ('256s', sysfs_path.as_posix().encode('utf-8')), # path
-        ('32s', sysfs_path.name.encode('utf-8')), # busid
-
-        ('I', attr_int('busnum')),
-        ('I', attr_int('devnum')),
-        ('I', attr_speed(sysfs_path)),
-
-        ('H', attr_hex('idVendor')),
-        ('H', attr_hex('idProduct')),
-        ('H', attr_hex('bcdDevice')),
-
-        ('B', attr_hex('bDeviceClass')),
-        ('B', attr_hex('bDeviceSubClass')),
-        ('B', attr_hex('bDeviceProtocol')),
-        ('B', attr_hex('bConfigurationValue', default=0)), # can be empty
-        ('B', attr_hex('bNumConfigurations')),
-        ('B', num_if),
+        *usb_device_struct_desc(sysfs_path)
     ]
 
     for if_dir in sysfs_path.glob(sysfs_path.name + ':*'):
-        attr_dir = if_dir
-        rep_vals += [
-            ('B', attr_hex('bInterfaceClass')),
-            ('B', attr_hex('bInterfaceSubClass')),
-            ('B', attr_hex('bInterfaceProtocol')),
+        struct_desc += [
+            ('B', (if_dir / 'bInterfaceClass').read_hex()),
+            ('B', (if_dir / 'bInterfaceSubClass').read_hex()),
+            ('B', (if_dir / 'bInterfaceProtocol').read_hex()),
             ('B', 0), # padding
         ]
 
-    format_str = "".join(map(operator.itemgetter(0), rep_vals))
-    values = map(operator.itemgetter(1), rep_vals)
-    return struct.pack(f'!{format_str}', *values)
+    return struct_desc_to_bytes(struct_desc)
 
 def build_rep_import(sysfs_path):
-    def attr_int(name):
-        return int((sysfs_path / name).read_text())
-
-    def attr_hex(name, default=None):
-        try:
-            return int((sysfs_path / name).read_text(), base=16)
-        except ValueError:
-            if default is not None:
-                return default
-            else:
-                raise
-
-    rep_vals = [
+    return struct_desc_to_bytes([
         ('H', PROTOCOL_VERSION),
         ('H', REP_IMPORT_CODE),
         ('I', 0), # status
 
-        ('256s', sysfs_path.as_posix().encode('utf-8')), # path
-        ('32s', sysfs_path.name.encode('utf-8')), # busid
-
-        ('I', attr_int('busnum')),
-        ('I', attr_int('devnum')),
-        ('I', attr_speed(sysfs_path)),
-
-        ('H', attr_hex('idVendor')),
-        ('H', attr_hex('idProduct')),
-        ('H', attr_hex('bcdDevice')),
-
-        ('B', attr_hex('bDeviceClass')),
-        ('B', attr_hex('bDeviceSubClass')),
-        ('B', attr_hex('bDeviceProtocol')),
-        ('B', attr_hex('bConfigurationValue', default=0)), # can be empty
-        ('B', attr_hex('bNumConfigurations')),
-        ('B', attr_hex('bNumInterfaces', default=0)), # can be empty
-    ]
-
-    format_str = "".join(map(operator.itemgetter(0), rep_vals))
-    values = map(operator.itemgetter(1), rep_vals)
-    return struct.pack(f'!{format_str}', *values)
+        *usb_device_struct_desc(sysfs_path)
+    ])
 
 def build_rep_import_error():
-    rep_vals = [
+    return struct_desc_to_bytes([
         ('H', PROTOCOL_VERSION),
         ('H', REP_IMPORT_CODE),
         ('I', 1), # status
+    ])
+
+def usb_device_struct_desc(sysfs_path):
+    return [
+        ('256s', sysfs_path.as_posix().encode('utf-8')), # path
+        ('32s', sysfs_path.name.encode('utf-8')), # busid
+
+        ('I', (sysfs_path / 'busnum').read_int()),
+        ('I', (sysfs_path / 'devnum').read_int()),
+        ('I', (sysfs_path / 'speed').read_speed()),
+
+        ('H', (sysfs_path / 'idVendor').read_hex()),
+        ('H', (sysfs_path / 'idProduct').read_hex()),
+        ('H', (sysfs_path / 'bcdDevice').read_hex()),
+
+        ('B', (sysfs_path / 'bDeviceClass').read_hex()),
+        ('B', (sysfs_path / 'bDeviceSubClass').read_hex()),
+        ('B', (sysfs_path / 'bDeviceProtocol').read_hex()),
+        ('B', (sysfs_path / 'bConfigurationValue').read_hex(default=0)), # can be empty
+        ('B', (sysfs_path / 'bNumConfigurations').read_hex()),
+        ('B', (sysfs_path / 'bNumInterfaces').read_hex(default=0)), # can be empty
     ]
 
-    format_str = "".join(map(operator.itemgetter(0), rep_vals))
-    values = map(operator.itemgetter(1), rep_vals)
+def struct_desc_to_bytes(struct_desc):
+    format_str = "".join(map(operator.itemgetter(0), struct_desc))
+    values = map(operator.itemgetter(1), struct_desc)
     return struct.pack(f'!{format_str}', *values)
 
 class StructStream:
@@ -147,8 +95,7 @@ class StructStream:
         return unpacked
 
 def export_device(sysfs_path, conn):
-    status = int((sysfs_path / 'usbip_status').read_text())
-    STATUS_AVAILABLE = 1
+    status = (sysfs_path / 'usbip_status').read_int()
     if status != STATUS_AVAILABLE:
         raise Error("Device unavailable")
 
@@ -157,6 +104,29 @@ def export_device(sysfs_path, conn):
     sockfd = conn.fileno()
     (sysfs_path / 'usbip_sockfd').write_text(f"{sockfd}\n")
 
+class SysfsPath(pathlib.PosixPath):
+    def read_int(self, default=None, base=10):
+        try:
+            return int(self.read_text(), base=base)
+        except ValueError:
+            if default is not None:
+                return default
+            else:
+                raise
+
+    def read_hex(self, default=None):
+        return self.read_int(default=default, base=16)
+
+    def read_speed(self):
+        string_to_code = {
+            "1.5": 1,
+            "12": 2,
+            "480": 3,
+            "53.3-480": 4,
+            "5000": 5,
+        }
+        string = self.read_text()[:-1] # strip newline
+        return string_to_code.get(string, 0)
 
 class ProtocolError(Exception):
     pass
@@ -166,7 +136,7 @@ class Error(Exception):
 
 def main():
     busid = "1-5.1.4"
-    sysfs_path = pathlib.Path("/sys/bus/usb/devices/") / busid
+    sysfs_path = SysfsPath("/sys/bus/usb/devices/") / busid
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
