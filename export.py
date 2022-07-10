@@ -8,16 +8,53 @@ import operator
 import pathlib
 
 PROTOCOL_VERSION = 0x0111
-REQ_IMPORT_CODE = 0x8003
-REP_IMPORT_CODE = 0x0003
-REQ_DEVLIST_CODE = 0x8005
-REP_DEVLIST_CODE = 0x0005
+COMMAND_CODE_IMPORT_REQUEST = 0x8003
+COMMAND_CODE_IMPORT_REPLY = 0x0003
+COMMAND_CODE_DEVLIST_REQUEST = 0x8005
+COMMAND_CODE_DEVLIST_REPLY = 0x0005
 STATUS_AVAILABLE = 1
 
-def build_rep_devlist(sysfs_path):
+def main():
+    busid = "1-5.1.4"
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(('localhost', 3240))
+    s.listen()
+
+    conn, addr = s.accept()
+    with conn:
+        process_request(conn, busid)
+
+def process_request(conn, busid):
+    sysfs_path = SysfsPath("/sys/bus/usb/devices/") / busid
+    stream = StructStream(conn)
+
+    version, code, status = stream.unpack('!HHI')
+    if version != PROTOCOL_VERSION:
+        raise ProtocolError(f"Unexpected protocol version: 0x{version:04x}")
+    if status != 0:
+        raise ProtocolError(f"Unexpected status: {status}")
+
+    if code == COMMAND_CODE_DEVLIST_REQUEST:
+        conn.sendall(create_devlist_reply(sysfs_path))
+    elif code == COMMAND_CODE_IMPORT_REQUEST:
+        busid_req = stream.unpack('!32s')[0].rstrip(b'\0').decode('utf-8')
+        if busid_req != busid:
+            raise ProtocolError(f"Unexpected Bus ID: {busid_req}")
+        try:
+            export_device(sysfs_path, conn)
+            conn.sendall(create_import_reply(sysfs_path))
+        except Error as e:
+            print(e)
+            conn.sendall(create_import_error_reply())
+    else:
+        raise ProtocolError(f"Unexpected command code: 0x{code:04x}")
+
+def create_devlist_reply(sysfs_path):
     struct_desc = [
         ('H', PROTOCOL_VERSION),
-        ('H', REP_DEVLIST_CODE),
+        ('H', COMMAND_CODE_DEVLIST_REPLY),
         ('I', 0), # status
         ('I', 1), # n_devices
 
@@ -34,19 +71,19 @@ def build_rep_devlist(sysfs_path):
 
     return struct_desc_to_bytes(struct_desc)
 
-def build_rep_import(sysfs_path):
+def create_import_reply(sysfs_path):
     return struct_desc_to_bytes([
         ('H', PROTOCOL_VERSION),
-        ('H', REP_IMPORT_CODE),
+        ('H', COMMAND_CODE_IMPORT_REPLY),
         ('I', 0), # status
 
         *usb_device_struct_desc(sysfs_path)
     ])
 
-def build_rep_import_error():
+def create_import_error_reply():
     return struct_desc_to_bytes([
         ('H', PROTOCOL_VERSION),
-        ('H', REP_IMPORT_CODE),
+        ('H', COMMAND_CODE_IMPORT_REPLY),
         ('I', 1), # status
     ])
 
@@ -133,39 +170,6 @@ class ProtocolError(Exception):
 
 class Error(Exception):
     pass
-
-def main():
-    busid = "1-5.1.4"
-    sysfs_path = SysfsPath("/sys/bus/usb/devices/") / busid
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(('localhost', 3240))
-    s.listen()
-
-    conn, addr = s.accept()
-    with conn:
-        stream = StructStream(conn)
-        version, code, status = stream.unpack('!HHI')
-        if version != PROTOCOL_VERSION:
-            raise ProtocolError(f"Unexpected protocol version: 0x{version:04x}")
-        if status != 0:
-            raise ProtocolError(f"Unexpected status: {status}")
-
-        if code == REQ_DEVLIST_CODE:
-            conn.sendall(build_rep_devlist(sysfs_path))
-        elif code == REQ_IMPORT_CODE:
-            busid_req = stream.unpack('!32s')[0].rstrip(b'\0').decode('utf-8')
-            if busid_req != busid:
-                raise ProtocolError(f"Unexpected Bus ID: {busid_req}")
-            try:
-                export_device(sysfs_path, conn)
-                conn.sendall(build_rep_import(sysfs_path))
-            except Error as e:
-                print(e)
-                conn.sendall(build_rep_import_error())
-        else:
-            raise ProtocolError(f"Unexpected command code: 0x{code:04x}")
 
 if __name__ == '__main__':
     main()
