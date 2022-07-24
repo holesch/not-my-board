@@ -1,5 +1,6 @@
 import argparse
 import aiohttp.web
+import functools
 
 from ..__about__ import __version__
 
@@ -31,10 +32,20 @@ def export_command(args):
     aiohttp.web.run_app(app, host='localhost', port=2092)
 
 
-@ROUTES.get('/api/v1/places')
+def json_get(path):
+    def decorator(f):
+        @ROUTES.get(path)
+        @functools.wraps(f)
+        async def wrapper(*args, **kwargs):
+            response = await f(*args, **kwargs)
+            return aiohttp.web.json_response(response)
+        return wrapper
+    return decorator
+
+
+@json_get('/api/v1/places')
 async def handle_places(request):
-    text = "Hello, World!"
-    return aiohttp.web.Response(text=text)
+    return { "message": "Hello, World!" }
 
 # /api/v1/places
 # /api/v1/places/{id}
