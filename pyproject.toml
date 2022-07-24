@@ -21,6 +21,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
 ]
 dependencies = [
+    "aiohttp",
 ]
 dynamic = ["version"]
 
