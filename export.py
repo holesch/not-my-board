@@ -2,8 +2,6 @@
 
 import socket
 import struct
-import collections
-import dataclasses
 import operator
 import pathlib
 
@@ -13,6 +11,7 @@ COMMAND_CODE_IMPORT_REPLY = 0x0003
 COMMAND_CODE_DEVLIST_REQUEST = 0x8005
 COMMAND_CODE_DEVLIST_REPLY = 0x0005
 STATUS_AVAILABLE = 1
+
 
 def main():
     busid = "1-5.1.4"
@@ -25,6 +24,7 @@ def main():
     conn, addr = s.accept()
     with conn:
         process_request(conn, busid)
+
 
 def process_request(conn, busid):
     sysfs_path = SysfsPath("/sys/bus/usb/devices/") / busid
@@ -51,12 +51,13 @@ def process_request(conn, busid):
     else:
         raise ProtocolError(f"Unexpected command code: 0x{code:04x}")
 
+
 def create_devlist_reply(sysfs_path):
     struct_desc = [
         ('H', PROTOCOL_VERSION),
         ('H', COMMAND_CODE_DEVLIST_REPLY),
-        ('I', 0), # status
-        ('I', 1), # n_devices
+        ('I', 0),  # status
+        ('I', 1),  # n_devices
 
         *usb_device_struct_desc(sysfs_path)
     ]
@@ -66,31 +67,34 @@ def create_devlist_reply(sysfs_path):
             ('B', (if_dir / 'bInterfaceClass').read_hex()),
             ('B', (if_dir / 'bInterfaceSubClass').read_hex()),
             ('B', (if_dir / 'bInterfaceProtocol').read_hex()),
-            ('B', 0), # padding
+            ('B', 0),  # padding
         ]
 
     return struct_desc_to_bytes(struct_desc)
+
 
 def create_import_reply(sysfs_path):
     return struct_desc_to_bytes([
         ('H', PROTOCOL_VERSION),
         ('H', COMMAND_CODE_IMPORT_REPLY),
-        ('I', 0), # status
+        ('I', 0),  # status
 
         *usb_device_struct_desc(sysfs_path)
     ])
+
 
 def create_import_error_reply():
     return struct_desc_to_bytes([
         ('H', PROTOCOL_VERSION),
         ('H', COMMAND_CODE_IMPORT_REPLY),
-        ('I', 1), # status
+        ('I', 1),  # status
     ])
+
 
 def usb_device_struct_desc(sysfs_path):
     return [
-        ('256s', sysfs_path.as_posix().encode('utf-8')), # path
-        ('32s', sysfs_path.name.encode('utf-8')), # busid
+        ('256s', sysfs_path.as_posix().encode('utf-8')),  # path
+        ('32s', sysfs_path.name.encode('utf-8')),  # busid
 
         ('I', (sysfs_path / 'busnum').read_int()),
         ('I', (sysfs_path / 'devnum').read_int()),
@@ -103,15 +107,17 @@ def usb_device_struct_desc(sysfs_path):
         ('B', (sysfs_path / 'bDeviceClass').read_hex()),
         ('B', (sysfs_path / 'bDeviceSubClass').read_hex()),
         ('B', (sysfs_path / 'bDeviceProtocol').read_hex()),
-        ('B', (sysfs_path / 'bConfigurationValue').read_hex(default=0)), # can be empty
+        ('B', (sysfs_path / 'bConfigurationValue').read_hex(default=0)),  # can be empty
         ('B', (sysfs_path / 'bNumConfigurations').read_hex()),
-        ('B', (sysfs_path / 'bNumInterfaces').read_hex(default=0)), # can be empty
+        ('B', (sysfs_path / 'bNumInterfaces').read_hex(default=0)),  # can be empty
     ]
+
 
 def struct_desc_to_bytes(struct_desc):
     format_str = "".join(map(operator.itemgetter(0), struct_desc))
     values = map(operator.itemgetter(1), struct_desc)
     return struct.pack(f'!{format_str}', *values)
+
 
 class StructStream:
     def __init__(self, conn):
@@ -131,6 +137,7 @@ class StructStream:
         self._offset += s.size
         return unpacked
 
+
 def export_device(sysfs_path, conn):
     status = (sysfs_path / 'usbip_status').read_int()
     if status != STATUS_AVAILABLE:
@@ -140,6 +147,7 @@ def export_device(sysfs_path, conn):
 
     sockfd = conn.fileno()
     (sysfs_path / 'usbip_sockfd').write_text(f"{sockfd}\n")
+
 
 class SysfsPath(pathlib.PosixPath):
     def read_int(self, default=None, base=10):
@@ -162,14 +170,17 @@ class SysfsPath(pathlib.PosixPath):
             "53.3-480": 4,
             "5000": 5,
         }
-        string = self.read_text()[:-1] # strip newline
+        string = self.read_text()[:-1]  # strip newline
         return string_to_code.get(string, 0)
+
 
 class ProtocolError(Exception):
     pass
 
+
 class Error(Exception):
     pass
+
 
 if __name__ == '__main__':
     main()

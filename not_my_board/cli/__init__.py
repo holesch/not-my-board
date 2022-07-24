@@ -7,3 +7,4 @@ def main():
     parser = argparse.ArgumentParser(description='Setup, manage and use a board farm')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     args = parser.parse_args()
+    print(args)
