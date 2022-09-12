@@ -4,6 +4,7 @@ import socket
 import struct
 import operator
 import pathlib
+import os
 
 PROTOCOL_VERSION = 0x0111
 COMMAND_CODE_IMPORT_REQUEST = 0x8003
@@ -15,15 +16,27 @@ STATUS_AVAILABLE = 1
 
 def main():
     busid = "1-5.1.4"
+    ctrl_path = pathlib.Path("/run/usbip-refresh-" + busid)
+    tmp_path = ctrl_path.with_name(ctrl_path.name + ".new")
+
+    os.mkfifo(tmp_path)
+    tmp_path.rename(ctrl_path)
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(('localhost', 3240))
     s.listen()
 
-    conn, addr = s.accept()
-    with conn:
-        process_request(conn, busid)
+    try:
+        while True:
+            print("Waiting for connection")
+
+            conn, addr = s.accept()
+            with conn:
+                wait_until_available(busid, ctrl_path)
+                process_request(conn, busid)
+    except KeyboardInterrupt:
+        pass
 
 
 def process_request(conn, busid):
@@ -51,6 +64,28 @@ def process_request(conn, busid):
     else:
         raise ProtocolError(f"Unexpected command code: 0x{code:04x}")
 
+
+def wait_until_available(busid, ctrl_path):
+    sysfs_path = SysfsPath("/sys/bus/usb/devices/") / busid
+    if is_available(sysfs_path):
+        return
+
+    print("Waiting until device is available")
+
+    with ctrl_path.open("r+b", buffering=0) as f:
+        while True:
+            if is_available(sysfs_path):
+                print("Device is available")
+                break
+            f.read(4096)
+
+def is_available(sysfs_path):
+    try:
+        if (sysfs_path / 'usbip_status').read_int() == STATUS_AVAILABLE:
+            return True
+    except Exception:
+        pass
+    return False
 
 def create_devlist_reply(sysfs_path):
     struct_desc = [
@@ -139,10 +174,6 @@ class StructStream:
 
 
 def export_device(sysfs_path, conn):
-    status = (sysfs_path / 'usbip_status').read_int()
-    if status != STATUS_AVAILABLE:
-        raise Error("Device unavailable")
-
     conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
     sockfd = conn.fileno()
