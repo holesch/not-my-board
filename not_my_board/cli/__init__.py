@@ -85,7 +85,7 @@ def json_get(path):
 @json_get('/api/v1/places')
 async def handle_places(request):
     config = request.app["config"]
-    return { "places": config.get("places", {}) }
+    return {"places": config.get("places", {})}
 
 # /api/v1/places
 # /api/v1/places/{place}
