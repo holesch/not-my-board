@@ -2,6 +2,7 @@ import argparse
 import aiohttp.web
 import functools
 import asyncio
+import not_my_board.forward
 
 from ..__about__ import __version__
 
@@ -44,46 +45,11 @@ async def middleware_debug(request, handler):
         await resp.prepare(request)
         resp.force_close()
 
-        loop = asyncio.get_running_loop()
-        on_con_lost = loop.create_future()
-        protocol = DummyHTTPResponse(on_con_lost)
-        protocol.connection_made(request.transport)
-        request.transport.set_protocol(protocol)
-        await on_con_lost
+        await not_my_board.forward.forward_connection(request.transport, 8080)
+
         return
 
     return await handler(request)
-
-class DummyHTTPResponse(asyncio.Protocol):
-    def __init__(self, on_con_lost):
-        self.on_con_lost = on_con_lost
-
-    def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        print('Connection from {}'.format(peername))
-        self.transport = transport
-
-    def data_received(self, data):
-        message = data.decode()
-        print('Data received: {!r}'.format(message))
-
-        body = "Hello, World!\n"
-        response = "\r\n".join([
-            "HTTP/1.1 200 Success",
-            "Content-Type: text/plain",
-            f"Content-Length: {len(body)}",
-            "Server: Fake CONNECT",
-            "",
-            body
-        ])
-        self.transport.write(response.encode())
-
-        print('Close the client socket')
-        self.transport.close()
-
-    def connection_lost(self, exc):
-        print('The client closed the connection')
-        self.on_con_lost.set_result(True)
 
 
 def parse_config():
