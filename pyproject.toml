@@ -19,9 +19,12 @@ classifiers = [
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "aiohttp",
+    "asgineer",
+    "uvicorn",
+    "websockets",
 ]
 dynamic = ["version"]
 
@@ -49,7 +52,7 @@ cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=not_my
 no-cov = "cov --no-cov"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["37", "38", "39", "310"]
+python = ["37", "38", "39", "310", "311"]
 
 [tool.coverage.run]
 branch = true
