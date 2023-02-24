@@ -9,9 +9,8 @@ async def export():
     uri = "ws://localhost:2092/ws"
     async with websockets.connect(uri, extra_headers={"Authorization": "Bearer dummy-token-1"}) as ws:
         msg = {
-            "method": "register",
+            "method": "register_exporter",
             "params": { 
-                "type": "exporter",
                 "places": [
                     {
                         "boards": [

@@ -3,6 +3,8 @@ import asyncio
 import logging
 from not_my_board._serve import serve
 from not_my_board._export import export
+from not_my_board._agent import agent
+import not_my_board._client as client
 
 from ..__about__ import __version__
 
@@ -22,6 +24,12 @@ def main():
     subparser = subparsers.add_parser("serve", help="start the board farm server")
     subparser.set_defaults(func=serve_command)
 
+    subparser = subparsers.add_parser("agent", help="start an agent")
+    subparser.set_defaults(func=agent_command)
+
+    subparser = subparsers.add_parser("reserve", help="reserve a place")
+    subparser.set_defaults(func=reserve_command)
+
     args = parser.parse_args()
 
     try:
@@ -35,3 +43,9 @@ def serve_command(args):
 
 def export_command(args):
     asyncio.run(export())
+
+def agent_command(args):
+    asyncio.run(agent())
+
+def reserve_command(args):
+    asyncio.run(client.reserve())
