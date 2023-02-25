@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "asgineer",
+    "h11",
     "uvicorn",
     "websockets",
 ]
