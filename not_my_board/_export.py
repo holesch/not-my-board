@@ -4,6 +4,7 @@ import asyncio
 import websockets
 import json
 import contextlib
+import ipaddress
 import not_my_board._jsonrpc as jsonrpc
 
 
@@ -46,7 +47,7 @@ class Exporter:
         await self._stack.__aexit__(exc_type, exc, tb)
 
     async def serve_forever(self):
-        exporter_api = ExporterApi()
+        exporter_api = ExporterApi(self)
         ws_server = jsonrpc.Server(
                 self._ws.send, self._receive_iterator, exporter_api)
         await ws_server.serve_forever()
@@ -58,6 +59,14 @@ class Exporter:
         except websockets.ConnectionClosedOK:
             pass
 
+    async def set_allowed_ips(self, ips):
+        ips = list(map(ipaddress.ip_address, ips))
+        print(f"setting allowed IPs: {ips}")
+
 
 class ExporterApi:
-    pass
+    def __init__(self, exporter):
+        self._exporter = exporter
+
+    async def set_allowed_ips(self, ips):
+        await self._exporter.set_allowed_ips(ips)

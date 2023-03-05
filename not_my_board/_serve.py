@@ -41,7 +41,8 @@ async def websocket_handler(ws):
 
     await ws.accept()
 
-    with Place.reservation_context() as ctx:
+    client_ip = ws.scope["client"][0]
+    async with Place.reservation_context(client_ip) as ctx:
         receive_iter = ws.receive_iter()
         ws_api = WebsocketApi(ws.send, receive_iter, ctx)
         websocket_server = jsonrpc.Server(ws.send, receive_iter, ws_api)
@@ -55,30 +56,20 @@ class WebsocketApi:
         self._reservation_context = reservation_context
 
     async def register_exporter(self, places):
-        await Exporter(self._send, self._receive_iter, places).communicate()
+        with contextlib.ExitStack() as stack:
+            exporter = jsonrpc.Proxy(self._send, self._receive_iter)
+
+            for place_desc in places:
+                stack.enter_context(Place.register(place_desc, exporter))
+
+            await exporter.io_loop()
 
     async def reserve(self, candidate_ids):
         place = await Place.reserve(candidate_ids, self._reservation_context)
         return place.desc
 
     async def return_reservation(self, place_id):
-        Place.return_by_id(place_id, self._reservation_context)
-
-
-class Exporter:
-    def __init__(self, send, receive_iter, places):
-        self._send = send
-        self._receive_iter = receive_iter
-        self._places_desc = places
-
-    async def communicate(self):
-        with contextlib.ExitStack() as stack:
-            self._places = [stack.enter_context(Place.register(desc, self))
-                for desc in self._places_desc]
-
-            async for json_msg in self._receive_iter:
-                msg = json.loads(json_msg)
-                print(msg)
+        await Place.return_by_id(place_id, self._reservation_context)
 
 
 class Place:
@@ -130,15 +121,15 @@ class Place:
         return self._desc
 
     @classmethod
-    @contextlib.contextmanager
-    def reservation_context(cls):
-        ctx = object()
+    @contextlib.asynccontextmanager
+    async def reservation_context(cls, client_ip):
+        ctx = _ReservationContext(client_ip)
         try:
             cls._reservations[ctx] = set()
             yield ctx
         finally:
             for place in cls._reservations[ctx]:
-                cls.return_by_id(place, ctx)
+                await cls.return_by_id(place, ctx)
             del cls._reservations[ctx]
 
     @classmethod
@@ -156,19 +147,26 @@ class Place:
             cls._available.remove(reserved_id)
             cls._reservations[ctx].add(reserved_id)
             logger.info(f"Place reserved: {reserved_id}")
-            return cls._all_places[reserved_id]
+            place = cls._all_places[reserved_id]
         else:
             logger.debug(f"No places available, adding request to queue: {existing_candidates}")
             future = asyncio.get_running_loop().create_future()
             entry = (existing_candidates, ctx, future)
             cls._wait_queue.append(entry)
             try:
-                return await future
+                place = await future
             finally:
                 cls._wait_queue.remove(entry)
 
+        try:
+            await place._exporter.set_allowed_ips([ctx.client_ip])
+        except Exception:
+            await cls.return_by_id(place._id)
+            raise
+        return place
+
     @classmethod
-    def return_by_id(cls, place_id, ctx):
+    async def return_by_id(cls, place_id, ctx):
         cls._reservations[ctx].remove(place_id)
         if place_id in cls._all_places:
             for candidates, new_ctx, future in cls._wait_queue:
@@ -180,3 +178,14 @@ class Place:
             else:
                 logger.info(f"Place returned: {place_id}")
                 cls._available.add(place_id)
+                await cls._all_places[place_id]._exporter.set_allowed_ips([])
+        else:
+            logger.info(f"Place returned, but it doesn't exist: {place_id}")
+
+class _ReservationContext:
+    def __init__(self, client_ip):
+        self._client_ip = client_ip
+
+    @property
+    def client_ip(self):
+        return self._client_ip
