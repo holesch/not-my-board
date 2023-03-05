@@ -147,25 +147,42 @@ class Proxy:
             await self._send(bytes(request))
 
 
-class Request:
+class Message:
+    _is_id_required = False
+
+    @classmethod
+    def parse_id(cls, raw_data):
+        data = json.loads(raw_data)
+        if cls._is_id_required or "id" in data:
+            assert isinstance(data["id"], (str, int)), \
+                    "\"id\" must be a string or number"
+        return data.get("id"), data
+
+    def __bytes__(self):
+        return json.dumps({
+            "jsonrpc": "2.0",
+            **self._body,
+        }).encode()
+
+
+class Request(Message):
     def __init__(self, method, params, id_=None):
         self.method = method
+        self.id = id_
+        self._body = {
+            "method": method,
+            "params": params,
+        }
+
+        if id_:
+            self._body["id"] = id_
+
         if isinstance(params, list):
             self.args = params
             self.kwargs = {}
         else:
             self.args = []
             self.kwargs = params
-        self.id = id_
-        self._params = params
-
-    @staticmethod
-    def parse_id(raw_data):
-        data = json.loads(raw_data)
-        if "id" in data:
-            assert isinstance(data["id"], (str, int)), \
-                    "\"id\" must be a string or number"
-        return data.get("id"), data
 
     @classmethod
     def from_data(cls, data):
@@ -176,16 +193,10 @@ class Request:
             "\"params\" must be a structured value"
         return cls(method, params, data.get("id"))
 
-    def __bytes__(self):
-        return json.dumps({
-            "jsonrpc": "2.0",
-            "method": self.method,
-            "params": self._params,
-            "id": self.id,
-        }).encode()
 
+class Response(Message):
+    _is_id_required = True
 
-class Response:
     def __init__(self, result, id_):
         self._body = {
             "result": result,
@@ -193,19 +204,6 @@ class Response:
         }
         self.result = result
         self.id = id_
-
-    def __bytes__(self):
-        return json.dumps({
-            "jsonrpc": "2.0",
-            **self._body
-        }).encode()
-
-    @staticmethod
-    def parse_id(raw_data):
-        data = json.loads(raw_data)
-        assert isinstance(data["id"], (str, int)), \
-                "\"id\" must be a string or number"
-        return data["id"], data
 
     @classmethod
     def from_data(cls, data):
