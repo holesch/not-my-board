@@ -10,7 +10,8 @@ from ..__about__ import __version__
 
 
 def main():
-    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(name)s: %(message)s', level=logging.DEBUG)
+    logging.getLogger("websockets.client").setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser(description='Setup, manage and use a board farm')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
@@ -29,6 +30,10 @@ def main():
 
     subparser = subparsers.add_parser("reserve", help="reserve a place")
     subparser.set_defaults(func=reserve_command)
+
+    subparser = subparsers.add_parser("return", help="return a place")
+    subparser.set_defaults(func=return_command)
+    subparser.add_argument("place_id", type=int, help="ID of the place to return")
 
     args = parser.parse_args()
 
@@ -49,3 +54,6 @@ def agent_command(args):
 
 def reserve_command(args):
     asyncio.run(client.reserve())
+
+def return_command(args):
+    asyncio.run(client.return_reservation(args.place_id))

@@ -5,6 +5,10 @@ import json
 import traceback
 import functools
 import textwrap
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 CODE_INTERNAL_ERROR = -32603
@@ -49,6 +53,7 @@ class Server:
             method = getattr(self._api_obj, request.method)
 
             next_error = CODE_INTERNAL_ERROR, None
+            logger.info(f"Method call: {request.method}")
             result = await method(*request.args, **request.kwargs)
 
             if id_ is not None:
@@ -71,9 +76,10 @@ class Proxy:
         self._receive_iter = receive_iter
         self._next_id = 1
         self._pending = dict()
+        self._is_receiving = True
 
     async def __aenter__(self):
-        self._task = asyncio.create_task(self._io_loop())
+        self._task = asyncio.create_task(self.io_loop())
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
@@ -83,9 +89,15 @@ class Proxy:
         except asyncio.CancelledError:
             pass
 
-    async def _io_loop(self):
-        async for raw_data in self._receive_iter:
-            await self._receive(raw_data)
+    async def io_loop(self):
+        try:
+            async for raw_data in self._receive_iter:
+                await self._receive(raw_data)
+        finally:
+            self._is_receiving = False
+            for future in self._pending.values():
+                if not future.done():
+                    future.set_exception(RuntimeError("Connection closed"))
 
     async def _receive(self, raw_data):
         id_ = None
@@ -109,6 +121,9 @@ class Proxy:
         return functools.partial(self._call, method_name)
 
     async def _call(self, method_name, *args, **kwargs):
+        if not self._is_receiving:
+            raise RuntimeError("IO loop is not running, can't receive responses")
+
         if kwargs.pop('_notification', False):
             id_ = None
         else:
@@ -118,6 +133,7 @@ class Proxy:
         assert not args or not kwargs, "use either args or kwargs"
 
         request = Request(method_name, args or kwargs, id_)
+        logger.info(f"Calling: {request.method}")
 
         if id_ is not None:
             future = asyncio.get_running_loop().create_future()
