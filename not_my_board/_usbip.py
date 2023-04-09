@@ -283,6 +283,7 @@ async def _watch_refresh_pipe(pipe, device):
 async def _main():
     import os
 
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(name)s: %(message)s', level=logging.DEBUG)
     busid = "1-5.1.1.1.4"
     device = UsbIpDevice(busid)
     server = await asyncio.start_server(device.handle_client, port=3240, family=socket.AF_INET)
@@ -300,6 +301,7 @@ async def _main():
                     ]]
 
             try:
+                logger.info("listening")
                 await asyncio.gather(*tasks)
             finally:
                 for task in tasks:
