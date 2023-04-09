@@ -12,14 +12,6 @@ import traceback
 logger = logging.getLogger(__name__)
 
 
-PROTOCOL_VERSION = 0x0111
-COMMAND_CODE_IMPORT_REQUEST = 0x8003
-COMMAND_CODE_IMPORT_REPLY = 0x0003
-COMMAND_CODE_DEVLIST_REQUEST = 0x8005
-COMMAND_CODE_DEVLIST_REPLY = 0x0005
-STATUS_AVAILABLE = 1
-
-
 class _SysfsFileInt:
     def __set_name__(self, owner, name):
         self._name = name
@@ -93,7 +85,8 @@ class UsbIpDevice:
 
     def _is_available(self):
         try:
-            if self.usbip_status == STATUS_AVAILABLE:
+            status_available = 1
+            if self.usbip_status == status_available:
                 return True
         except FileNotFoundError:
             # device might have disappeared
@@ -154,112 +147,246 @@ class _UsbIpConnection:
     def __init__(self, device, reader, writer):
         self._device = device
         self._reader = reader
-        self._data = b''
         self._writer = writer
 
     async def handle_client(self):
-        version, code, status = await self._receive('!HHI')
-        if version != PROTOCOL_VERSION:
-            raise ProtocolError(f"Unexpected protocol version: 0x{version:04x}")
-        if status != 0:
-            raise ProtocolError(f"Unexpected status: {status}")
+        msg = await receive_message(self._reader)
+        logger.debug(f"Received: {msg}")
 
-        if code == COMMAND_CODE_DEVLIST_REQUEST:
-            await self._send(self._devlist_reply())
-        elif code == COMMAND_CODE_IMPORT_REQUEST:
-            busid = (await self._receive('!32s'))[0].rstrip(b'\0')
-            if busid != self._device.busid:
-                raise ProtocolError(f"Unexpected Bus ID: {busid}")
+        if type(msg) == DevlistRequest:
+            reply = await DevlistReply.from_device(self._device)
+            logger.debug(f"Sending: {reply}")
+            await self._send(reply)
+        elif type(msg) == ImportRequest:
+            if msg.busid != self._device.busid:
+                raise ProtocolError(f"Unexpected Bus ID: {msg.busid}")
+
+            reply = await ImportReply.from_device(self._device)
+            logger.debug(f"Sending: {reply}")
 
             async with self._device:
                 self._writer.transport.pause_reading()
                 fd = self._writer.transport.get_extra_info("socket").fileno()
                 self._device.export(fd)
-                await self._send(self._import_reply())
+                await self._send(reply)
                 await self._device.available()
         else:
-            raise ProtocolError(f"Unexpected command code: 0x{code:04x}")
-
-    async def _receive(self, format):
-        s = struct.Struct(format)
-        while len(self._data) < s.size:
-            data = await self._reader.read(4 * 1024)
-            if not data:
-                break
-            self._data += data
-
-        unpacked = s.unpack_from(self._data)
-        self._data = self._data[s.size:]
-        return unpacked
+            raise ProtocolError(f"Unexpected message: {msg}")
 
     async def _send(self, data):
         self._writer.write(bytes(data))
         await self._writer.drain()
 
-    def _devlist_reply(self):
-        reply = _StructBuilder(
-            ('H', PROTOCOL_VERSION),
-            ('H', COMMAND_CODE_DEVLIST_REPLY),
-            ('I', 0),  # status
-            ('I', 1),  # n_devices
 
-            *self._usb_device_desc()
-        )
+class _NamedStruct(struct.Struct):
+    def __init__(self, *type_name_pairs):
+        format_str = '!'
+        self._names = list()
 
-        for interface in self._device.interfaces():
-            reply.append(
-                ('B', interface.bInterfaceClass),
-                ('B', interface.bInterfaceSubClass),
-                ('B', interface.bInterfaceProtocol),
-                ('B', 0),  # padding
-            )
+        for type_, name in type_name_pairs:
+            format_str += type_
+            self._names.append(name)
 
-        return reply
+        super().__init__(format_str)
 
-    def _import_reply(self):
-        return _StructBuilder(
-            ('H', PROTOCOL_VERSION),
-            ('H', COMMAND_CODE_IMPORT_REPLY),
-            ('I', 0),  # status
+    def unpack(self, buffer):
+        values = super().unpack(buffer)
+        return {name: value for name, value in zip(self._names, values)}
 
-            *self._usb_device_desc()
-        )
+    def iter_unpack(self, buffer):
+        for values in super().iter_unpack(buffer):
+            yield {name: value for name, value in zip(self._names, values)}
 
-    def _usb_device_desc(self):
-        return [
-            ('256s', self._device.path),
-            ('32s', self._device.busid),
+    def pack(self, **kwargs):
+        values = [kwargs[name] for name in self._names]
+        return super().pack(*values)
 
-            ('I', self._device.busnum),
-            ('I', self._device.devnum),
-            ('I', self._device.speed),
-
-            ('H', self._device.idVendor),
-            ('H', self._device.idProduct),
-            ('H', self._device.bcdDevice),
-
-            ('B', self._device.bDeviceClass),
-            ('B', self._device.bDeviceSubClass),
-            ('B', self._device.bDeviceProtocol),
-            ('B', self._device.bConfigurationValue),
-            ('B', self._device.bNumConfigurations),
-            ('B', self._device.bNumInterfaces),
-        ]
+    @property
+    def field_names(self):
+        return self._names
 
 
-class _StructBuilder:
-    def __init__(self, *type_value_pairs):
-        self._format = '!'
-        self._values = list()
-        self.append(*type_value_pairs)
+async def receive_message(reader):
+    code_class_map = {cls.code: cls for cls in _Message.__subclasses__()}
+    code = await _Message._receive_header(reader)
+    cls = code_class_map.get(code)
+    if cls is None:
+        raise ProtocolError(f"Unexpected code: {code}")
 
-    def append(self, *type_value_pairs):
-        for type_, value in type_value_pairs:
-            self._format += type_
-            self._values.append(value)
+    return await cls._from_body(reader)
+
+
+class _Message:
+    _protocol_version = 0x0111
+    _header_format = _NamedStruct(
+        ("H", "version"),
+        ("H", "code"),
+        ("I", "status"),
+    )
+    _strip_fields = [
+        "path",
+        "busid",
+    ]
+
+    def __init__(self, **kwargs):
+        self._values = kwargs
+
+    @classmethod
+    async def from_reader(cls, reader):
+        code = await cls._receive_header(reader)
+
+        if code != cls.code:
+            raise ProtocolError(f"Unexpected code: {code}")
+
+        return await cls._from_body(reader)
+
+    @classmethod
+    async def _receive_header(cls, reader):
+        data = await reader.readexactly(cls._header_format.size)
+        header = cls._header_format.unpack(data)
+        if header["version"] != cls._protocol_version:
+            raise ProtocolError(f"Unexpected protocol version: 0x{header['version']:04x}")
+        if header["status"] != 0:
+            raise ProtocolError(f"Unexpected status: {header['status']}")
+
+        return header["code"]
+
+    @classmethod
+    async def _receive_body(cls, reader):
+        data = await reader.readexactly(cls._message_format.size)
+        values = cls._message_format.unpack(data)
+        for name in cls._strip_fields:
+            if name in values:
+                values[name] = values[name].rstrip(b'\0')
+
+        return values
+
+    @classmethod
+    async def _from_body(cls, reader):
+        values = await cls._receive_body(reader)
+        return cls(**values)
 
     def __bytes__(self):
-        return struct.pack(self._format, *self._values)
+        header = self._header_format.pack(
+                version=self._protocol_version,
+                code=self.code,
+                status=0)
+
+        return header + self._message_format.pack(**self._values)
+
+    def __getattr__(self, attr):
+        if attr in self._values:
+            return self._values[attr]
+        cls_name = type(self).__name__
+        raise AttributeError(f"'{cls_name}' object has no attribute '{attr}'")
+
+    def __repr__(self):
+        args_str = ", ".join([f"{key}={value}"
+                for key, value in self._values.items()])
+        cls_name = type(self).__name__
+        return f"<{cls_name}({args_str})>"
+
+
+class DevlistRequest(_Message):
+    code = 0x8005
+    _message_format = _NamedStruct()
+
+
+class DevlistReply(_Message):
+    code = 0x0005
+    _message_format = _NamedStruct(
+        ('I', "n_devices"),
+
+        ('256s', "path"),
+        ('32s', "busid"),
+
+        ('I', "busnum"),
+        ('I', "devnum"),
+        ('I', "speed"),
+
+        ('H', "idVendor"),
+        ('H', "idProduct"),
+        ('H', "bcdDevice"),
+
+        ('B', "bDeviceClass"),
+        ('B', "bDeviceSubClass"),
+        ('B', "bDeviceProtocol"),
+        ('B', "bConfigurationValue"),
+        ('B', "bNumConfigurations"),
+        ('B', "bNumInterfaces"),
+    )
+    _interface_format = _NamedStruct(
+        ('B', "bInterfaceClass"),
+        ('B', "bInterfaceSubClass"),
+        ('Bx', "bInterfaceProtocol"),
+    )
+
+    @classmethod
+    async def _receive_body(cls, reader):
+        values = await super()._receive_body(reader)
+
+        interfaces_size = cls._interface_format.size * values["bNumInterfaces"]
+        data = await reader.readexactly(interfaces_size)
+        values["interfaces"] = [v
+                for v in cls._interface_format.iter_unpack(data)]
+
+        return values
+
+    @classmethod
+    async def from_device(cls, device):
+        values = {name: getattr(device, name)
+                for name in cls._message_format.field_names[1:]}
+        values["n_devices"] = 1
+
+        values["interfaces"] = [
+                {name: getattr(interface, name)
+                    for name in cls._interface_format.field_names}
+            for interface in device.interfaces()]
+
+        return cls(**values)
+
+    def __bytes__(self):
+        interfaces = b"".join([self._interface_format.pack(**values)
+            for values in self._values["interfaces"]])
+
+        return super().__bytes__() + interfaces
+
+
+class ImportRequest(_Message):
+    code = 0x8003
+    _message_format = _NamedStruct(
+        ('32s', "busid"),
+    )
+
+
+class ImportReply(_Message):
+    code = 0x0003
+    _message_format = _NamedStruct(
+        ('256s', "path"),
+        ('32s', "busid"),
+
+        ('I', "busnum"),
+        ('I', "devnum"),
+        ('I', "speed"),
+
+        ('H', "idVendor"),
+        ('H', "idProduct"),
+        ('H', "bcdDevice"),
+
+        ('B', "bDeviceClass"),
+        ('B', "bDeviceSubClass"),
+        ('B', "bDeviceProtocol"),
+        ('B', "bConfigurationValue"),
+        ('B', "bNumConfigurations"),
+        ('B', "bNumInterfaces"),
+    )
+
+    @classmethod
+    async def from_device(cls, device):
+        values = {name: getattr(device, name)
+                for name in cls._message_format.field_names}
+
+        return cls(**values)
 
 
 class ProtocolError(Exception):
