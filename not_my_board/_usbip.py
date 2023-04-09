@@ -21,8 +21,10 @@ STATUS_AVAILABLE = 1
 
 
 class _SysfsFileInt:
-    def __init__(self, name, base=10, default=None):
+    def __set_name__(self, owner, name):
         self._name = name
+
+    def __init__(self, base=10, default=None):
         self._base = base
         self._default = default
 
@@ -38,8 +40,8 @@ class _SysfsFileInt:
 
 
 class _SysfsFileHex(_SysfsFileInt):
-    def __init__(self, name, default=None):
-        super().__init__(name, 16, default)
+    def __init__(self, default=None):
+        super().__init__(16, default)
 
 
 class UsbIpDevice:
@@ -121,18 +123,18 @@ class UsbIpDevice:
         string = (self._sysfs_path / 'speed').read_text()[:-1]  # strip newline
         return string_to_code.get(string, 0)
 
-    usbip_status = _SysfsFileInt('usbip_status')
-    busnum = _SysfsFileInt('busnum')
-    devnum = _SysfsFileInt('devnum')
-    idVendor = _SysfsFileHex('idVendor')
-    idProduct = _SysfsFileHex('idProduct')
-    bcdDevice = _SysfsFileHex('bcdDevice')
-    bDeviceClass = _SysfsFileHex('bDeviceClass')
-    bDeviceSubClass = _SysfsFileHex('bDeviceSubClass')
-    bDeviceProtocol = _SysfsFileHex('bDeviceProtocol')
-    bConfigurationValue = _SysfsFileHex('bConfigurationValue', default=0)
-    bNumConfigurations = _SysfsFileHex('bNumConfigurations')
-    bNumInterfaces = _SysfsFileHex('bNumInterfaces', default=0)
+    usbip_status = _SysfsFileInt()
+    busnum = _SysfsFileInt()
+    devnum = _SysfsFileInt()
+    idVendor = _SysfsFileHex()
+    idProduct = _SysfsFileHex()
+    bcdDevice = _SysfsFileHex()
+    bDeviceClass = _SysfsFileHex()
+    bDeviceSubClass = _SysfsFileHex()
+    bDeviceProtocol = _SysfsFileHex()
+    bConfigurationValue = _SysfsFileHex(default=0)
+    bNumConfigurations = _SysfsFileHex()
+    bNumInterfaces = _SysfsFileHex(default=0)
 
     def interfaces(self):
         for if_dir in self._sysfs_path.glob(self._sysfs_path.name + ':*'):
@@ -143,9 +145,9 @@ class _UsbIpDeviceInterface:
     def __init__(self, sysfs_path):
         self._sysfs_path = sysfs_path
 
-    bInterfaceClass = _SysfsFileHex('bInterfaceClass')
-    bInterfaceSubClass = _SysfsFileHex('bInterfaceSubClass')
-    bInterfaceProtocol = _SysfsFileHex('bInterfaceProtocol')
+    bInterfaceClass = _SysfsFileHex()
+    bInterfaceSubClass = _SysfsFileHex()
+    bInterfaceProtocol = _SysfsFileHex()
 
 
 class _UsbIpConnection:
