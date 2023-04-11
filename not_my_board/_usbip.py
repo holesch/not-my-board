@@ -7,6 +7,7 @@ import struct
 import contextlib
 import logging
 import traceback
+import os
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,9 @@ class UsbIpDevice:
             await _UsbIpConnection(self, reader, writer).handle_client()
         except Exception:
             traceback.print_exc()
+        finally:
+            writer.close()
+            await writer.wait_closed()
 
     def refresh(self):
         self._refresh_event.set()
@@ -150,32 +154,65 @@ class _UsbIpConnection:
         self._writer = writer
 
     async def handle_client(self):
-        msg = await receive_message(self._reader)
-        logger.debug(f"Received: {msg}")
+        while True:
+            request = await receive_message(self._reader)
+            logger.debug(f"Received: {request}")
 
-        if type(msg) == DevlistRequest:
-            reply = await DevlistReply.from_device(self._device)
-            logger.debug(f"Sending: {reply}")
-            await self._send(reply)
-        elif type(msg) == ImportRequest:
-            if msg.busid != self._device.busid:
-                raise ProtocolError(f"Unexpected Bus ID: {msg.busid}")
+            if type(request) == DevlistRequest:
+                await self._handle_devlist_request(request)
+            elif type(request) == ImportRequest:
+                await self._handle_import_request(request)
+                break
+            else:
+                raise ProtocolError(f"Unexpected message: {request}")
+
+    async def _handle_devlist_request(self, request):
+        reply = await DevlistReply.from_device(self._device)
+        logger.debug(f"Sending: {reply}")
+        await self._send(reply)
+
+    async def _handle_import_request(self, request):
+        if request.busid != self._device.busid:
+            raise ProtocolError(f"Unexpected Bus ID: {request.busid}")
+
+        async with self._device:
+            self._writer.transport.pause_reading()
+            fd = self._writer.transport.get_extra_info("socket").fileno()
+            self._device.export(fd)
 
             reply = await ImportReply.from_device(self._device)
             logger.debug(f"Sending: {reply}")
+            await self._send(reply)
 
-            async with self._device:
-                self._writer.transport.pause_reading()
-                fd = self._writer.transport.get_extra_info("socket").fileno()
-                self._device.export(fd)
-                await self._send(reply)
-                await self._device.available()
-        else:
-            raise ProtocolError(f"Unexpected message: {msg}")
+            self._writer.close()
+            await self._writer.wait_closed()
+            await self._device.available()
 
     async def _send(self, data):
         self._writer.write(bytes(data))
         await self._writer.drain()
+
+
+async def attach(reader, writer, busid, port):
+    request = ImportRequest(busid=busid.encode())
+    logger.debug(f"Sending: {request}")
+    writer.write(bytes(request))
+    await writer.drain()
+
+    reply = await ImportReply.from_reader(reader)
+    logger.debug(f"Received: {reply}")
+
+    fd = os.dup(writer.transport.get_extra_info("socket").fileno())
+
+    try:
+        writer.close()
+        await writer.wait_closed()
+
+        attach_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/attach")
+        devid = (reply.busnum << 16) | reply.devnum
+        attach_path.write_text(f"{port} {fd} {devid} {reply.speed}\n")
+    finally:
+        os.close(fd)
 
 
 class _NamedStruct(struct.Struct):
@@ -249,7 +286,9 @@ class _Message:
         if header["status"] != 0:
             raise ProtocolError(f"Unexpected status: {header['status']}")
 
-        return header["code"]
+        code = header["code"]
+        logger.debug(f"Received header: code=0x{code:04x}")
+        return code
 
     @classmethod
     async def _receive_body(cls, reader):
@@ -410,32 +449,42 @@ async def _watch_refresh_pipe(pipe, device):
 
 
 async def _main():
-    import os
+    import sys
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(name)s: %(message)s', level=logging.DEBUG)
+
     busid = "1-5.1.1.1.4"
-    device = UsbIpDevice(busid)
-    server = await asyncio.start_server(device.handle_client, port=3240, family=socket.AF_INET)
-    async with server:
-        pipe_path = pathlib.Path("/run/usbip-refresh-" + busid)
 
-        tmp_path = pipe_path.with_name(pipe_path.name + ".new")
-        os.mkfifo(tmp_path)
-        tmp_path.replace(pipe_path)
+    if len(sys.argv) > 1 and sys.argv[1] == "attach":
+        while True:
+            logger.info("Connecting")
+            reader, writer = await asyncio.open_connection(
+                    "localhost", 3240, family=socket.AF_INET)
+            await attach(reader, writer, busid, 3)
+    else:
+        device = UsbIpDevice(busid)
+        server = await asyncio.start_server(
+                device.handle_client, port=3240, family=socket.AF_INET)
+        async with server:
+            pipe_path = pathlib.Path("/run/usbip-refresh-" + busid)
 
-        async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
-            tasks = [asyncio.create_task(coro) for coro in [
-                        server.serve_forever(),
-                        _watch_refresh_pipe(pipe, device),
-                    ]]
+            tmp_path = pipe_path.with_name(pipe_path.name + ".new")
+            os.mkfifo(tmp_path)
+            tmp_path.replace(pipe_path)
 
-            try:
-                logger.info("listening")
-                await asyncio.gather(*tasks)
-            finally:
-                for task in tasks:
-                    if not task.done():
-                        task.cancel()
+            async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
+                tasks = [asyncio.create_task(coro) for coro in [
+                            server.serve_forever(),
+                            _watch_refresh_pipe(pipe, device),
+                        ]]
+
+                try:
+                    logger.info("listening")
+                    await asyncio.gather(*tasks)
+                finally:
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
 
 
 if __name__ == '__main__':
