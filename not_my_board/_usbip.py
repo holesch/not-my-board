@@ -51,8 +51,11 @@ class UsbIpDevice:
         except Exception:
             traceback.print_exc()
         finally:
-            writer.close()
-            await writer.wait_closed()
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
 
     def refresh(self):
         self._refresh_event.set()
