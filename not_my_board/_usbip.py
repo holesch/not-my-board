@@ -152,6 +152,8 @@ class _UsbIpConnection:
         self._device = device
         self._reader = reader
         self._writer = writer
+        self._sock = writer.transport.get_extra_info("socket")
+        _enable_keep_alive(self._sock)
 
     async def handle_client(self):
         while True:
@@ -177,7 +179,7 @@ class _UsbIpConnection:
 
         async with self._device:
             self._writer.transport.pause_reading()
-            fd = self._writer.transport.get_extra_info("socket").fileno()
+            fd = self._sock.fileno()
             self._device.export(fd)
 
             reply = await ImportReply.from_device(self._device)
@@ -194,6 +196,11 @@ class _UsbIpConnection:
 
 
 async def attach(reader, writer, busid, port):
+    sock = writer.transport.get_extra_info("socket")
+    # Client waits 2 seconds longer before sending keep alive probes, otherwise
+    # both sides start sending at the same time.
+    _enable_keep_alive(sock, extra_idle_sec=2)
+
     request = ImportRequest(busid=busid.encode())
     logger.debug(f"Sending: {request}")
     writer.write(bytes(request))
@@ -202,7 +209,7 @@ async def attach(reader, writer, busid, port):
     reply = await ImportReply.from_reader(reader)
     logger.debug(f"Received: {reply}")
 
-    fd = os.dup(writer.transport.get_extra_info("socket").fileno())
+    fd = os.dup(sock.fileno())
 
     try:
         writer.close()
@@ -213,6 +220,18 @@ async def attach(reader, writer, busid, port):
         attach_path.write_text(f"{port} {fd} {devid} {reply.speed}\n")
     finally:
         os.close(fd)
+
+
+def _enable_keep_alive(sock, extra_idle_sec=0):
+    # enable TCP keep alive
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
+    # Drop connections faster than the 2 hour default: Send first probe after 5
+    # (+extra_idle_sec) seconds, then every 5 seconds. After 3 unanswered
+    # probes the connection is closed.
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 5 + extra_idle_sec)
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 5)
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
 
 class _NamedStruct(struct.Struct):
