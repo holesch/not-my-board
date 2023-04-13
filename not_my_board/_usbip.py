@@ -308,9 +308,7 @@ class _Message:
         if header["status"] != 0:
             raise ProtocolError(f"Unexpected status: {header['status']}")
 
-        code = header["code"]
-        logger.debug(f"Received header: code=0x{code:04x}")
-        return code
+        return header["code"]
 
     @classmethod
     async def _receive_body(cls, reader):
