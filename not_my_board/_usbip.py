@@ -158,6 +158,9 @@ class _UsbIpConnection:
         self._sock = writer.transport.get_extra_info("socket")
         _enable_keep_alive(self._sock)
 
+        # allow client to trigger a refresh
+        self._device.refresh()
+
     async def handle_client(self):
         while True:
             request = await receive_message(self._reader)
