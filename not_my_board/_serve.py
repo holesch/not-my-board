@@ -128,7 +128,7 @@ class Place:
             cls._reservations[ctx] = set()
             yield ctx
         finally:
-            for place in cls._reservations[ctx]:
+            for place in cls._reservations[ctx].copy():
                 await cls.return_by_id(place, ctx)
             del cls._reservations[ctx]
 
