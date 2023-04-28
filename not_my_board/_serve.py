@@ -8,6 +8,7 @@ import traceback
 import not_my_board._jsonrpc as jsonrpc
 import random
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 valid_tokens = ("dummy-token-1", "dummy-token-2")
@@ -111,7 +112,7 @@ class Place:
             logger.info(f"Place disappeared: {self._id}")
             del cls._all_places[self._id]
             cls._available.discard(self._id)
-            for candidates, future in cls._wait_queue:
+            for candidates, ctx, future in cls._wait_queue:
                 candidates.discard(self._id)
                 if not candidates and not future.done():
                     future.set_exception(Exception("All candidate places are gone"))
