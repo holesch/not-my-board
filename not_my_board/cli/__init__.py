@@ -19,41 +19,43 @@ def main():
             dest="command", required=True, metavar="command",
             help="for more info use: %(prog)s <command> -h")
 
-    subparser = subparsers.add_parser("export", help="make connected boards available in the board farm")
-    subparser.set_defaults(func=export_command)
+    def add_subcommand(name, *args, **kwargs):
+        subparser = subparsers.add_parser(name, *args, **kwargs)
+        subparser.set_defaults(func=globals()[f"_{name}_command"])
+        return subparser
 
-    subparser = subparsers.add_parser("serve", help="start the board farm server")
-    subparser.set_defaults(func=serve_command)
+    subparser = add_subcommand("export", help="make connected boards available in the board farm")
 
-    subparser = subparsers.add_parser("agent", help="start an agent")
-    subparser.set_defaults(func=agent_command)
+    subparser = add_subcommand("serve", help="start the board farm server")
 
-    subparser = subparsers.add_parser("reserve", help="reserve a place")
-    subparser.set_defaults(func=reserve_command)
+    subparser = add_subcommand("agent", help="start an agent")
 
-    subparser = subparsers.add_parser("return", help="return a place")
-    subparser.set_defaults(func=return_command)
+    subparser = add_subcommand("reserve", help="reserve a place")
+
+    subparser = add_subcommand("return", help="return a place")
     subparser.add_argument("place_id", type=int, help="ID of the place to return")
 
     args = parser.parse_args()
 
     try:
-        args.func(args)
+        obj = args.func(args)
+        if asyncio.iscoroutine(obj):
+            asyncio.run(obj)
     except KeyboardInterrupt:
         pass
 
 
-def serve_command(args):
+def _serve_command(args):
     serve()
 
-def export_command(args):
-    asyncio.run(export())
+async def _export_command(args):
+    await export()
 
-def agent_command(args):
-    asyncio.run(agent())
+async def _agent_command(args):
+    await agent()
 
-def reserve_command(args):
-    asyncio.run(client.reserve())
+async def _reserve_command(args):
+    await client.reserve()
 
-def return_command(args):
-    asyncio.run(client.return_reservation(args.place_id))
+async def _return_command(args):
+    await client.return_reservation(args.place_id)
