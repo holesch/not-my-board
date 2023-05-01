@@ -45,24 +45,21 @@ async def websocket_handler(ws):
     client_ip = ws.scope["client"][0]
     async with Place.reservation_context(client_ip) as ctx:
         receive_iter = ws.receive_iter()
-        ws_api = WebsocketApi(ws.send, receive_iter, ctx)
+        ws_api = WebsocketApi(ws.send, receive_iter, ctx, client_ip)
         websocket_server = jsonrpc.Server(ws.send, receive_iter, ws_api)
         await websocket_server.serve_forever()
 
 
 class WebsocketApi:
-    def __init__(self, send, receive_iter, reservation_context):
+    def __init__(self, send, receive_iter, reservation_context, client_ip):
         self._send = send
         self._receive_iter = receive_iter
         self._reservation_context = reservation_context
+        self._client_ip = client_ip
 
-    async def register_exporter(self, places):
-        with contextlib.ExitStack() as stack:
-            exporter = jsonrpc.Proxy(self._send, self._receive_iter)
-
-            for place_desc in places:
-                stack.enter_context(Place.register(place_desc, exporter))
-
+    async def register_exporter(self, place):
+        exporter = jsonrpc.Proxy(self._send, self._receive_iter)
+        with Place.register(place, exporter, self._client_ip):
             await exporter.io_loop()
 
     async def reserve(self, candidate_ids):
@@ -96,13 +93,14 @@ class Place:
 
     @classmethod
     @contextlib.contextmanager
-    def register(cls, desc, exporter):
+    def register(cls, desc, exporter, client_ip):
         self = cls()
         self._desc = desc
         self._exporter = exporter
 
         self._id = cls._new_id()
         self._desc["id"] = self._id
+        self._desc["host"] = client_ip
         try:
             logger.info(f"New place registered: {self._id}")
             cls._all_places[self._id] = self

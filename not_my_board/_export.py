@@ -17,8 +17,8 @@ import not_my_board._jsonrpc as jsonrpc
 logger = logging.getLogger(__name__)
 
 
-async def export():
-    async with Exporter() as exporter:
+async def export(place):
+    async with Exporter(place) as exporter:
         await exporter.serve_forever()
 
 
@@ -33,23 +33,9 @@ def log_exception(func):
 
 
 class Exporter:
-    _places = [
-        {
-            "boards": [
-                {
-                    "interfaces": [
-                        "usb0",
-                    ],
-                    "compatible": [
-                        "raspberry-pi",
-                    ],
-                },
-            ],
-        },
-    ]
-
-    def __init__(self):
+    def __init__(self, place):
         self._allowed_ips = []
+        self._place = place
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
@@ -60,7 +46,7 @@ class Exporter:
             self._receive_iterator = self._receive_iter()
 
             server_proxy = jsonrpc.Proxy(self._ws.send, self._receive_iterator)
-            await server_proxy.register_exporter(self._places, _notification=True)
+            await server_proxy.register_exporter(self._place, _notification=True)
 
             self._http_server = await asyncio.start_server(
                     self._handle_client,

@@ -1,6 +1,8 @@
 import argparse
 import asyncio
 import logging
+import pathlib
+import json
 from not_my_board._serve import serve
 from not_my_board._export import export
 from not_my_board._agent import agent
@@ -25,6 +27,7 @@ def main():
         return subparser
 
     subparser = add_subcommand("export", help="make connected boards available in the board farm")
+    subparser.add_argument("config", type=pathlib.Path, help="configuration of the place to export")
 
     subparser = add_subcommand("serve", help="start the board farm server")
 
@@ -49,7 +52,8 @@ def _serve_command(args):
     serve()
 
 async def _export_command(args):
-    await export()
+    place = json.loads(args.config.read_text())
+    await export(place)
 
 async def _agent_command(args):
     await agent()

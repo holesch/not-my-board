@@ -1,0 +1,17 @@
+{
+  "port": 2192,
+  "boards": [
+    {
+      "name": "Raspberry Pi",
+      "compatible": [
+        "raspberry-pi"
+      ],
+      "interfaces": [
+        {
+          "name": "usb0",
+          "type": "USB"
+        }
+      ]
+    }
+  ]
+}
