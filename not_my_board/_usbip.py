@@ -472,24 +472,38 @@ async def _watch_refresh_pipe(pipe, device):
 
 
 async def _main():
-    import sys
+    import argparse
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(name)s: %(message)s', level=logging.DEBUG)
 
-    busid = "1-5.1.1.1.4"
+    parser = argparse.ArgumentParser(description='Import and export USB ports')
+    subparsers = parser.add_subparsers(
+            dest="command", required=True, metavar="command")
 
-    if len(sys.argv) > 1 and sys.argv[1] == "attach":
+    subparser = subparsers.add_parser("export", help="export a USB device")
+    subparser.add_argument("busid", help="busid of the device to export, e.g. \"1-5.1.4\"")
+    subparser.add_argument("-p", "--port", default=3240, help="port to listen on")
+
+    subparser = subparsers.add_parser("import", help="import a USB device")
+    subparser.add_argument("host", help="host to connect to")
+    subparser.add_argument("busid", help="busid of the device to import, e.g. \"1-5.1.4\"")
+    subparser.add_argument("vhci_port", help="vhci port to attach device to, e.g. \"0\"")
+    subparser.add_argument("-p", "--port", default=3240, help="port to connect to")
+
+    args = parser.parse_args()
+
+    if args.command == "import":
         while True:
             logger.info("Connecting")
             reader, writer = await asyncio.open_connection(
-                    "localhost", 3240, family=socket.AF_INET)
-            await attach(reader, writer, busid, 3)
+                    args.host, args.port, family=socket.AF_INET)
+            await attach(reader, writer, args.busid, args.vhci_port)
     else:
-        device = UsbIpDevice(busid)
+        device = UsbIpDevice(args.busid)
         server = await asyncio.start_server(
-                device.handle_client, port=3240, family=socket.AF_INET)
+                device.handle_client, port=args.port, family=socket.AF_INET)
         async with server:
-            pipe_path = pathlib.Path("/run/usbip-refresh-" + busid)
+            pipe_path = pathlib.Path("/run/usbip-refresh-" + args.busid)
 
             tmp_path = pipe_path.with_name(pipe_path.name + ".new")
             os.mkfifo(tmp_path)
