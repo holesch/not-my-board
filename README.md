@@ -76,3 +76,67 @@ USB port 3-4 and its USB port to 3-5. The *Agent* then filters all the exported
 *Places* based on that description and gives the *Server* a list of the matching
 candidates. As soon as the *Server* reserves one of the candidates, the *Agent*
 connects directly with the *Exporter* and attaches the resources as requested.
+
+## USB/IP
+
+not-my-board uses the USB/IP protocol to tunnel USB devices over the network.
+Since the USB device is controlled by the software on the exported board, we
+want to export any device, that appears on a specific USB port. With the usbipd
+tool, which is part of the Linux Kernel, this would only be possible by polling.
+The USB/IP implementation in not-my-board behaves a bit different: It doesn't
+return an error if nothing is attached on the requested port, but it blocks
+until there is a device. That way the client can just request a device and it
+will get it as soon as it's available.
+
+For that to work, udevd needs to be configured to bind the device to the
+usbip-host driver when the device appears. Additionally some USB devices can't
+handle getting probed twice, so the exporter needs to disable
+`drivers_autoprobe` and bind usbip-host directly instead of unbinding the
+default driver first.
+
+### udev Rules
+
+`/etc/udev/rules.d/30-usbip.rules`:
+
+```
+# disable autoprobe
+ACTION=="add|change", KERNEL=="usb", SUBSYSTEM=="subsystem", \
+       ATTR{drivers_autoprobe}="0"
+
+ACTION!="add", GOTO="usbip_end"
+SUBSYSTEM!="usb", GOTO="usbip_end"
+
+# devices to export
+ATTR{busnum}=="1", ATTR{devpath}=="4.1", GOTO="usbip_apply"
+ATTR{busnum}=="1", ATTR{devpath}=="4.2", GOTO="usbip_apply"
+
+# default: probe drivers
+RUN+="/bin/sh -c \"printf '$kernel' > '$sys/bus/usb/drivers_probe'\""
+GOTO="usbip_end"
+
+LABEL="usbip_apply"
+RUN{builtin}+="kmod load usbip-host"
+RUN+="/usr/bin/systemd-cat -t usbip-bind /usr/local/libexec/usbip-bind '$kernel' '$sys'"
+
+LABEL="usbip_end"
+```
+
+`/usr/local/libexec/usbip-bind`:
+
+```
+#!/bin/sh -e
+
+busid=${1:?} # udev: $kernel
+sys=${2:?} # sysfs mountpoint, usually "/sys"
+
+echo "Binding to usbip-host: \"$busid\"" >&2
+printf "add $busid" > "$sys/bus/usb/drivers/usbip-host/match_busid"
+printf "$busid" > "$sys/bus/usb/drivers/usbip-host/bind"
+printf '.' 1<> "/run/usbip-refresh-$busid"
+```
+
+```console
+$ sudo chmod +x /usr/local/libexec/usbip-bind
+$ sudo udevadm control -R
+$ sudo udevadm trigger /sys/bus/usb
+```
