@@ -12,6 +12,12 @@ import datetime
 import logging
 import traceback
 import not_my_board._jsonrpc as jsonrpc
+import not_my_board._models as models
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 
 logger = logging.getLogger(__name__)
@@ -33,9 +39,10 @@ def log_exception(func):
 
 
 class Exporter:
-    def __init__(self, place):
+    def __init__(self, export_desc_path):
         self._allowed_ips = []
-        self._place = place
+        export_desc_content = export_desc_path.read_text()
+        self._place = models.ExportDesc(**tomllib.loads(export_desc_content))
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
@@ -46,11 +53,11 @@ class Exporter:
             self._receive_iterator = self._receive_iter()
 
             server_proxy = jsonrpc.Proxy(self._ws.send, self._receive_iterator)
-            await server_proxy.register_exporter(self._place, _notification=True)
+            await server_proxy.register_exporter(self._place.dict(), _notification=True)
 
             self._http_server = await asyncio.start_server(
                     self._handle_client,
-                    port=2192,
+                    port=self._place.port,
                     family=socket.AF_INET)
             await stack.enter_async_context(self._http_server)
 

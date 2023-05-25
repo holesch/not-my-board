@@ -64,7 +64,7 @@ class WebsocketApi:
 
     async def reserve(self, candidate_ids):
         place = await Place.reserve(candidate_ids, self._reservation_context)
-        return place.desc
+        return place.desc["id"]
 
     async def return_reservation(self, place_id):
         await Place.return_by_id(place_id, self._reservation_context)
