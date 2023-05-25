@@ -1,0 +1,20 @@
+# This is an export description and describes the Place, that the Exporter
+# registers in the Board Farm.
+
+# Listen port for the exporter
+port = 2192
+
+[[parts]]
+compatible = [
+    "raspberry-pi",
+]
+# Export two USB devices using USB/IP.
+usb.usb0 = { usbid = "1-3" }
+usb.serial = { usbid = "1-4" }
+
+[[parts]]
+compatible = [
+    "my-power-supply",
+]
+# Forward a port from the power supply.
+tcp.scpi = { host = "192.168.116.8", port = 5025 }

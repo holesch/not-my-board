@@ -24,6 +24,8 @@ classifiers = [
 dependencies = [
     "asgineer",
     "h11",
+    "pydantic",
+    "tomli; python_version < '3.11'",
     "uvicorn",
     "websockets",
 ]

@@ -1,0 +1,19 @@
+# This is a Place Specification and is used to filter the Places registered
+# in the Board Farm. The Agent uses this Specification to reserve one of the
+# matching Places.
+# A Place matches, when all Parts match. A Part matches, when:
+# - the tags in "compatible" are a subset of the exported Part
+# - all USB and TCP interfaces are available (matched by name, like "usb0")
+
+[parts.pi]
+compatible = [ "raspberry-pi" ]
+# Attach the two exported USB devices to the local USB Virtual Host
+# Controller Interface using USB/IP.
+usb.usb0 = { vhci_port = 0 }
+usb.serial = { vhci_port = 1 }
+
+[parts.power]
+compatible = [ "my-power-supply" ]
+# Listen on localhost:5025 and forward connections to the actual power
+# supply attached to the exporter.
+tcp.scpi = { local_port = 5025 }
