@@ -105,6 +105,8 @@ class Agent:
 
             candidates = _filter_places(spec, places)
             candidate_ids = [key for key in candidates]
+            if not candidate_ids:
+                raise RuntimeError("No matching place found")
 
             place_id = await self._server_proxy.reserve(candidate_ids)
 
@@ -169,7 +171,12 @@ def _find_matching(spec_part_sets, place):
     matching = []
     for name, matches in match_graph.items():
         if len(matches) != 1:
-            raise Exception("Complex matching is not supported, yet")
+            # Complex matching
+            matching_dict = util.find_matching(match_graph)
+            if len(match_graph) == len(matching_dict):
+                return matching_dict.items()
+            else:
+                return None
 
         matching.append((name, matches[0]))
 
