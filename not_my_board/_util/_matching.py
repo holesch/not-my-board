@@ -1,10 +1,13 @@
 import collections
+from typing import Mapping, Iterable, TypeVar, Hashable, TypeGuard
 
 
 INFINITY = float("inf")
+U = TypeVar('U', bound=Hashable)
+V = TypeVar('V', bound=Hashable)
 
 
-def find_matching(G):
+def find_matching(G: Mapping[U, Iterable[V]]) -> dict[U, V]:
     """Find the most pairs in a bipartite graph.
 
     The problem is better known as maximum cardinality matching. The bipartite
@@ -32,9 +35,9 @@ def find_matching(G):
 
     # M is the current matching. It starts as a partial matching and is updated
     # until it is a maximum matching.
-    M = {}
-    M_reverse = {}
-    layer = {}
+    M: dict[U, V] = {}
+    M_reverse: dict[V, U] = {}
+    layer: dict[U | None, float] = {}
 
     # This breadth-first search finds the shortest augmenting paths. An
     # augmenting path is a special path with the following rules:
@@ -44,8 +47,9 @@ def find_matching(G):
     # - the path ends at a free vertex in V
     # The search saves the layer of each vertex in U, at which it was
     # encountered in the search, to guide the following depth-first search.
-    def breadth_first_search():
-        queue = collections.deque()
+    def breadth_first_search() -> bool:
+        queue: collections.deque[U | None] = collections.deque()
+        u: U | None
 
         # find free vertices in U to use as starting points
         for u in G:
@@ -56,7 +60,7 @@ def find_matching(G):
                 queue.append(u)
         layer[None] = INFINITY
 
-        def is_shortest_path(u):
+        def is_shortest_path(u: U | None) -> TypeGuard[U]:
             return layer[u] < layer[None]
 
         while queue:
@@ -77,7 +81,7 @@ def find_matching(G):
     # replaced by the unmatched edges in the path. Since the augmenting paths
     # start and end at a free vertex, every found path increases the number of
     # pairs by one.
-    def depth_first_search(u):
+    def depth_first_search(u: U) -> bool:
         for v in G[u]:
             # Go from v to u over a matched edge. next_u is None, if v is free.
             next_u = M_reverse.get(v)
@@ -100,7 +104,7 @@ def find_matching(G):
     return M
 
 
-def _main():
+def _main() -> None:
     G = {
         "U0": ["V0", "V1"],
         "U1": ["V0", "V4"],
