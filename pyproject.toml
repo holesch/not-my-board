@@ -78,6 +78,7 @@ exclude_lines = [
 [tool.pylint."MESSAGES CONTROL"]
 disable = [
     "attribute-defined-outside-init",
+    "broad-exception-caught",
     "fixme",
     "missing-class-docstring",
     "missing-function-docstring",

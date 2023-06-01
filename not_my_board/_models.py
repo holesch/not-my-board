@@ -1,7 +1,7 @@
-import pydantic
 import ipaddress
-from typing import List, Dict
+from typing import Dict, List
 
+import pydantic
 
 UsbId = pydantic.constr(regex=r'^[1-9][0-9]*-[1-9][0-9]*(\.[1-9][0-9]*)*$')
 

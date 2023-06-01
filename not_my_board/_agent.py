@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 import asyncio
-import pathlib
+import contextlib
 import os
-import not_my_board._jsonrpc as jsonrpc
+import pathlib
+import urllib.parse
+
+import websockets
+
 import not_my_board._http as http
+import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
 import not_my_board._util as util
-import traceback
-import contextlib
-import websockets
-import urllib.parse
 
 try:
     import tomllib
@@ -19,8 +20,8 @@ except ModuleNotFoundError:
 
 
 async def agent(server_url):
-    async with Agent(server_url) as agent:
-        await agent.serve_forever()
+    async with Agent(server_url) as a:
+        await a.serve_forever()
 
 
 class Agent:
@@ -77,16 +78,14 @@ class Agent:
                 self._unix_server.serve_forever(),
                 self._server_proxy.io_loop())
 
+    @util.log_exception
     async def _handle_client(self, reader, writer):
         async def send(data):
             writer.write(data + b"\n")
             await writer.drain()
 
-        try:
-            socket_server = jsonrpc.Server(send, reader, self)
-            await socket_server.serve_forever()
-        except Exception:
-            traceback.print_exc()
+        socket_server = jsonrpc.Server(send, reader, self)
+        await socket_server.serve_forever()
 
     async def reserve(self, name, spec_file):
         if name in self._reserved_places:
@@ -104,7 +103,7 @@ class Agent:
             places = [models.Place(**p) for p in response["places"]]
 
             candidates = _filter_places(spec, places)
-            candidate_ids = [key for key in candidates]
+            candidate_ids = list(candidates)
             if not candidate_ids:
                 raise RuntimeError("No matching place found")
 
@@ -137,7 +136,7 @@ class Agent:
             await reserved_place.detach()
 
     async def list(self):
-        return [name for name in self._reserved_places]
+        return list(self._reserved_places)
 
 
 def _filter_places(spec, places):

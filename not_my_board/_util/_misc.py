@@ -26,7 +26,7 @@ def log_exception(func):
     async def wrapper(*args, **kwargs):
         try:
             await func(*args, **kwargs)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             traceback.print_exc()
 
     return wrapper

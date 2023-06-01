@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 
-import urllib.parse
 import asyncio
 import json
+import urllib.parse
+
 import h11
 
 

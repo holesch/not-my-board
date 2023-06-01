@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
 import asyncio
-import socket
-import pathlib
-import struct
 import contextlib
 import logging
-import traceback
 import os
-
+import pathlib
+import socket
+import struct
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class UsbIpDevice:
                 # client might have disconnected or device disappeared
                 pass
             except Exception as e:
-                logger.warn(f"Error while stopping export: {e}")
+                logger.warning("Error while stopping export: %s", e)
 
         await self._stack.__aexit__(exc_type, exc, tb)
 
@@ -99,7 +98,7 @@ class UsbIpDevice:
             # device might have disappeared
             pass
         except Exception as e:
-            logger.warn(f"Error while checking device status: {e}")
+            logger.warning("Error while checking device status: %s", e)
 
         return False
 
@@ -164,19 +163,19 @@ class _UsbIpConnection:
     async def handle_client(self):
         while True:
             request = await receive_message(self._reader)
-            logger.debug(f"Received: {request}")
+            logger.debug("Received: %s", request)
 
-            if type(request) == DevlistRequest:
+            if isinstance(request, DevlistRequest):
                 await self._handle_devlist_request(request)
-            elif type(request) == ImportRequest:
+            elif isinstance(request, ImportRequest):
                 await self._handle_import_request(request)
                 break
             else:
                 raise ProtocolError(f"Unexpected message: {request}")
 
-    async def _handle_devlist_request(self, request):
+    async def _handle_devlist_request(self, _):
         reply = await DevlistReply.from_device(self._device)
-        logger.debug(f"Sending: {reply}")
+        logger.debug("Sending: %s", reply)
         await self._send(reply)
 
     async def _handle_import_request(self, request):
@@ -189,7 +188,7 @@ class _UsbIpConnection:
             self._device.export(fd)
 
             reply = await ImportReply.from_device(self._device)
-            logger.debug(f"Sending: {reply}")
+            logger.debug("Sending: %s", reply)
             await self._send(reply)
 
             self._writer.close()
@@ -208,12 +207,12 @@ async def attach(reader, writer, busid, port):
     _enable_keep_alive(sock, extra_idle_sec=2)
 
     request = ImportRequest(busid=busid.encode())
-    logger.debug(f"Sending: {request}")
+    logger.debug("Sending: %s", request)
     writer.write(bytes(request))
     await writer.drain()
 
     reply = await ImportReply.from_reader(reader)
-    logger.debug(f"Received: {reply}")
+    logger.debug("Received: %s", reply)
 
     fd = os.dup(sock.fileno())
 
@@ -243,7 +242,7 @@ def _enable_keep_alive(sock, extra_idle_sec=0):
 class _NamedStruct(struct.Struct):
     def __init__(self, *type_name_pairs):
         format_str = '!'
-        self._names = list()
+        self._names = []
 
         for type_, name in type_name_pairs:
             format_str += type_
@@ -253,11 +252,11 @@ class _NamedStruct(struct.Struct):
 
     def unpack(self, buffer):
         values = super().unpack(buffer)
-        return {name: value for name, value in zip(self._names, values)}
+        return dict(zip(self._names, values))
 
     def iter_unpack(self, buffer):
         for values in super().iter_unpack(buffer):
-            yield {name: value for name, value in zip(self._names, values)}
+            yield dict(zip(self._names, values))
 
     def pack(self, **kwargs):
         values = [kwargs[name] for name in self._names]
@@ -268,6 +267,7 @@ class _NamedStruct(struct.Struct):
         return self._names
 
 
+# pylint: disable=protected-access
 async def receive_message(reader):
     code_class_map = {cls.code: cls for cls in _Message.__subclasses__()}
     code = await _Message._receive_header(reader)
@@ -389,8 +389,7 @@ class DevlistReply(_Message):
 
         interfaces_size = cls._interface_format.size * values["bNumInterfaces"]
         data = await reader.readexactly(interfaces_size)
-        values["interfaces"] = [v
-                for v in cls._interface_format.iter_unpack(data)]
+        values["interfaces"] = list(cls._interface_format.iter_unpack(data))
 
         return values
 
@@ -471,10 +470,13 @@ async def _watch_refresh_pipe(pipe, device):
         device.refresh()
 
 
+# pylint: disable=import-outside-toplevel
 async def _main():
     import argparse
 
-    logging.basicConfig(format='%(asctime)s %(levelname)s: %(name)s: %(message)s', level=logging.DEBUG)
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)s: %(name)s: %(message)s', level=logging.DEBUG
+    )
 
     parser = argparse.ArgumentParser(description='Import and export USB ports')
     subparsers = parser.add_subparsers(

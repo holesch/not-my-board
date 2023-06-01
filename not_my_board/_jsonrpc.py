@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
 import asyncio
-import json
-import traceback
 import functools
-import textwrap
+import json
 import logging
-
+import textwrap
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class Server:
             method = getattr(self._api_obj, request.method)
 
             next_error = CODE_INTERNAL_ERROR, None
-            logger.info(f"Method call: {request.method}")
+            logger.info("Method call: %s", request.method)
             result = await method(*request.args, **request.kwargs)
 
             if id_ is not None:
@@ -75,14 +74,14 @@ class Proxy:
         self._send = send
         self._receive_iter = receive_iter
         self._next_id = 1
-        self._pending = dict()
+        self._pending = {}
         self._is_receiving = True
 
     async def __aenter__(self):
         self._task = asyncio.create_task(self.io_loop())
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc, tb):
         self._task.cancel()
         try:
             await self._task
@@ -117,7 +116,7 @@ class Proxy:
 
     def __getattr__(self, method_name):
         if method_name.startswith("_"):
-            raise AttributeError("invalid attribute '%s'" % method_name)
+            raise AttributeError(f"invalid attribute '{method_name}'")
         return functools.partial(self._call, method_name)
 
     async def _call(self, method_name, *args, **kwargs):
@@ -133,7 +132,7 @@ class Proxy:
         assert not args or not kwargs, "use either args or kwargs"
 
         request = Request(method_name, args or kwargs, id_)
-        logger.info(f"Calling: {request.method}")
+        logger.info("Calling: %s", request.method)
 
         if id_ is not None:
             future = asyncio.get_running_loop().create_future()
@@ -149,6 +148,7 @@ class Proxy:
 
 class Message:
     _is_id_required = False
+    _body = {}
 
     @classmethod
     def parse_id(cls, raw_data):
@@ -188,7 +188,7 @@ class Request(Message):
     def from_data(cls, data):
         method = data["method"]
         assert isinstance(method, str), "\"method\" must be a string"
-        params = data.get("params", list())
+        params = data.get("params", [])
         assert isinstance(params, (list, dict)), \
             "\"params\" must be a structured value"
         return cls(method, params, data.get("id"))
@@ -214,6 +214,7 @@ class Response(Message):
 
 
 class ErrorResponse(Response):
+    # pylint: disable=super-init-not-called
     def __init__(self, code, message, id_, data=None):
         self._body = {
             "error": {

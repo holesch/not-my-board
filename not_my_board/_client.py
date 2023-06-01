@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 import asyncio
-import not_my_board._jsonrpc as jsonrpc
-import pathlib
-import os
 import contextlib
+import os
+import pathlib
+
+import not_my_board._jsonrpc as jsonrpc
 
 
 async def reserve(name, with_name=None):
@@ -20,6 +21,8 @@ async def return_reservation(name):
         await proxy.return_reservation(name)
 
 
+# TODO implement unused-argument
+# pylint: disable=unused-argument
 async def attach(name, keep_others=False):
     async with agent_proxy() as proxy:
         reserved_names = set(await proxy.list())
@@ -39,7 +42,7 @@ async def detach(name, keep=False):
             await proxy.return_reservation(name)
 
 
-async def list():
+async def list_():
     async with agent_proxy() as proxy:
         return await proxy.list()
 
