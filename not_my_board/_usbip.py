@@ -71,7 +71,7 @@ class UsbIpDevice:
     async def __aexit__(self, exc_type, exc, tb):
         if self._is_exported:
             try:
-                (self._sysfs_path / 'usbip_sockfd').write_text("-1\n")
+                (self._sysfs_path / "usbip_sockfd").write_text("-1\n")
             except (OSError, FileNotFoundError):
                 # client might have disconnected or device disappeared
                 pass
@@ -86,7 +86,7 @@ class UsbIpDevice:
             await self._refresh_event.wait()
 
     def export(self, fd):
-        (self._sysfs_path / 'usbip_sockfd').write_text(f"{fd}\n")
+        (self._sysfs_path / "usbip_sockfd").write_text(f"{fd}\n")
         self._is_exported = True
 
     def _is_available(self):
@@ -104,11 +104,11 @@ class UsbIpDevice:
 
     @property
     def busid(self):
-        return self._sysfs_path.name.encode('utf-8')
+        return self._sysfs_path.name.encode("utf-8")
 
     @property
     def path(self):
-        return self._sysfs_path.as_posix().encode('utf-8')
+        return self._sysfs_path.as_posix().encode("utf-8")
 
     @property
     def speed(self):
@@ -119,7 +119,7 @@ class UsbIpDevice:
             "53.3-480": 4,
             "5000": 5,
         }
-        string = (self._sysfs_path / 'speed').read_text()[:-1]  # strip newline
+        string = (self._sysfs_path / "speed").read_text()[:-1]  # strip newline
         return string_to_code.get(string, 0)
 
     usbip_status = _SysfsFileInt()
@@ -136,7 +136,7 @@ class UsbIpDevice:
     bNumInterfaces = _SysfsFileHex(default=0)
 
     def interfaces(self):
-        for if_dir in self._sysfs_path.glob(self._sysfs_path.name + ':*'):
+        for if_dir in self._sysfs_path.glob(self._sysfs_path.name + ":*"):
             yield _UsbIpDeviceInterface(if_dir)
 
 
@@ -241,7 +241,7 @@ def _enable_keep_alive(sock, extra_idle_sec=0):
 
 class _NamedStruct(struct.Struct):
     def __init__(self, *type_name_pairs):
-        format_str = '!'
+        format_str = "!"
         self._names = []
 
         for type_, name in type_name_pairs:
@@ -307,7 +307,9 @@ class _Message:
         data = await reader.readexactly(cls._header_format.size)
         header = cls._header_format.unpack(data)
         if header["version"] != cls._protocol_version:
-            raise ProtocolError(f"Unexpected protocol version: 0x{header['version']:04x}")
+            raise ProtocolError(
+                f"Unexpected protocol version: 0x{header['version']:04x}"
+            )
         if header["status"] != 0:
             raise ProtocolError(f"Unexpected status: {header['status']}")
 
@@ -319,7 +321,7 @@ class _Message:
         values = cls._message_format.unpack(data)
         for name in cls._strip_fields:
             if name in values:
-                values[name] = values[name].rstrip(b'\0')
+                values[name] = values[name].rstrip(b"\0")
 
         return values
 
@@ -330,9 +332,8 @@ class _Message:
 
     def __bytes__(self):
         header = self._header_format.pack(
-                version=self._protocol_version,
-                code=self.code,
-                status=0)
+            version=self._protocol_version, code=self.code, status=0
+        )
 
         return header + self._message_format.pack(**self._values)
 
@@ -343,8 +344,7 @@ class _Message:
         raise AttributeError(f"'{cls_name}' object has no attribute '{attr}'")
 
     def __repr__(self):
-        args_str = ", ".join([f"{key}={value}"
-                for key, value in self._values.items()])
+        args_str = ", ".join([f"{key}={value}" for key, value in self._values.items()])
         cls_name = type(self).__name__
         return f"<{cls_name}({args_str})>"
 
@@ -357,30 +357,26 @@ class DevlistRequest(_Message):
 class DevlistReply(_Message):
     code = 0x0005
     _message_format = _NamedStruct(
-        ('I', "n_devices"),
-
-        ('256s', "path"),
-        ('32s', "busid"),
-
-        ('I', "busnum"),
-        ('I', "devnum"),
-        ('I', "speed"),
-
-        ('H', "idVendor"),
-        ('H', "idProduct"),
-        ('H', "bcdDevice"),
-
-        ('B', "bDeviceClass"),
-        ('B', "bDeviceSubClass"),
-        ('B', "bDeviceProtocol"),
-        ('B', "bConfigurationValue"),
-        ('B', "bNumConfigurations"),
-        ('B', "bNumInterfaces"),
+        ("I", "n_devices"),
+        ("256s", "path"),
+        ("32s", "busid"),
+        ("I", "busnum"),
+        ("I", "devnum"),
+        ("I", "speed"),
+        ("H", "idVendor"),
+        ("H", "idProduct"),
+        ("H", "bcdDevice"),
+        ("B", "bDeviceClass"),
+        ("B", "bDeviceSubClass"),
+        ("B", "bDeviceProtocol"),
+        ("B", "bConfigurationValue"),
+        ("B", "bNumConfigurations"),
+        ("B", "bNumInterfaces"),
     )
     _interface_format = _NamedStruct(
-        ('B', "bInterfaceClass"),
-        ('B', "bInterfaceSubClass"),
-        ('Bx', "bInterfaceProtocol"),
+        ("B", "bInterfaceClass"),
+        ("B", "bInterfaceSubClass"),
+        ("Bx", "bInterfaceProtocol"),
     )
 
     @classmethod
@@ -395,20 +391,28 @@ class DevlistReply(_Message):
 
     @classmethod
     async def from_device(cls, device):
-        values = {name: getattr(device, name)
-                for name in cls._message_format.field_names[1:]}
+        values = {
+            name: getattr(device, name) for name in cls._message_format.field_names[1:]
+        }
         values["n_devices"] = 1
 
         values["interfaces"] = [
-                {name: getattr(interface, name)
-                    for name in cls._interface_format.field_names}
-            for interface in device.interfaces()]
+            {
+                name: getattr(interface, name)
+                for name in cls._interface_format.field_names
+            }
+            for interface in device.interfaces()
+        ]
 
         return cls(**values)
 
     def __bytes__(self):
-        interfaces = b"".join([self._interface_format.pack(**values)
-            for values in self._values["interfaces"]])
+        interfaces = b"".join(
+            [
+                self._interface_format.pack(**values)
+                for values in self._values["interfaces"]
+            ]
+        )
 
         return super().__bytes__() + interfaces
 
@@ -416,36 +420,34 @@ class DevlistReply(_Message):
 class ImportRequest(_Message):
     code = 0x8003
     _message_format = _NamedStruct(
-        ('32s', "busid"),
+        ("32s", "busid"),
     )
 
 
 class ImportReply(_Message):
     code = 0x0003
     _message_format = _NamedStruct(
-        ('256s', "path"),
-        ('32s', "busid"),
-
-        ('I', "busnum"),
-        ('I', "devnum"),
-        ('I', "speed"),
-
-        ('H', "idVendor"),
-        ('H', "idProduct"),
-        ('H', "bcdDevice"),
-
-        ('B', "bDeviceClass"),
-        ('B', "bDeviceSubClass"),
-        ('B', "bDeviceProtocol"),
-        ('B', "bConfigurationValue"),
-        ('B', "bNumConfigurations"),
-        ('B', "bNumInterfaces"),
+        ("256s", "path"),
+        ("32s", "busid"),
+        ("I", "busnum"),
+        ("I", "devnum"),
+        ("I", "speed"),
+        ("H", "idVendor"),
+        ("H", "idProduct"),
+        ("H", "bcdDevice"),
+        ("B", "bDeviceClass"),
+        ("B", "bDeviceSubClass"),
+        ("B", "bDeviceProtocol"),
+        ("B", "bConfigurationValue"),
+        ("B", "bNumConfigurations"),
+        ("B", "bNumInterfaces"),
     )
 
     @classmethod
     async def from_device(cls, device):
-        values = {name: getattr(device, name)
-                for name in cls._message_format.field_names}
+        values = {
+            name: getattr(device, name) for name in cls._message_format.field_names
+        }
 
         return cls(**values)
 
@@ -475,21 +477,24 @@ async def _main():
     import argparse
 
     logging.basicConfig(
-        format='%(asctime)s %(levelname)s: %(name)s: %(message)s', level=logging.DEBUG
+        format="%(asctime)s %(levelname)s: %(name)s: %(message)s", level=logging.DEBUG
     )
 
-    parser = argparse.ArgumentParser(description='Import and export USB ports')
-    subparsers = parser.add_subparsers(
-            dest="command", required=True, metavar="command")
+    parser = argparse.ArgumentParser(description="Import and export USB ports")
+    subparsers = parser.add_subparsers(dest="command", required=True, metavar="command")
 
     subparser = subparsers.add_parser("export", help="export a USB device")
-    subparser.add_argument("busid", help="busid of the device to export, e.g. \"1-5.1.4\"")
+    subparser.add_argument(
+        "busid", help='busid of the device to export, e.g. "1-5.1.4"'
+    )
     subparser.add_argument("-p", "--port", default=3240, help="port to listen on")
 
     subparser = subparsers.add_parser("import", help="import a USB device")
     subparser.add_argument("host", help="host to connect to")
-    subparser.add_argument("busid", help="busid of the device to import, e.g. \"1-5.1.4\"")
-    subparser.add_argument("vhci_port", help="vhci port to attach device to, e.g. \"0\"")
+    subparser.add_argument(
+        "busid", help='busid of the device to import, e.g. "1-5.1.4"'
+    )
+    subparser.add_argument("vhci_port", help='vhci port to attach device to, e.g. "0"')
     subparser.add_argument("-p", "--port", default=3240, help="port to connect to")
 
     args = parser.parse_args()
@@ -498,12 +503,14 @@ async def _main():
         while True:
             logger.info("Connecting")
             reader, writer = await asyncio.open_connection(
-                    args.host, args.port, family=socket.AF_INET)
+                args.host, args.port, family=socket.AF_INET
+            )
             await attach(reader, writer, args.busid, args.vhci_port)
     else:
         device = UsbIpDevice(args.busid)
         server = await asyncio.start_server(
-                device.handle_client, port=args.port, family=socket.AF_INET)
+            device.handle_client, port=args.port, family=socket.AF_INET
+        )
         async with server:
             pipe_path = pathlib.Path("/run/usbip-refresh-" + args.busid)
 
@@ -512,10 +519,13 @@ async def _main():
             tmp_path.replace(pipe_path)
 
             async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
-                tasks = [asyncio.create_task(coro) for coro in [
-                            server.serve_forever(),
-                            _watch_refresh_pipe(pipe, device),
-                        ]]
+                tasks = [
+                    asyncio.create_task(coro)
+                    for coro in [
+                        server.serve_forever(),
+                        _watch_refresh_pipe(pipe, device),
+                    ]
+                ]
 
                 try:
                     logger.info("listening")
@@ -526,7 +536,7 @@ async def _main():
                             task.cancel()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         asyncio.run(_main())
     except KeyboardInterrupt:

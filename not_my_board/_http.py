@@ -21,14 +21,16 @@ async def get_json(url):
     ]
 
     conn = h11.Connection(our_role=h11.CLIENT)
-    to_send = conn.send(h11.Request(method="GET", target=url.path or '/', headers=headers))
+    to_send = conn.send(
+        h11.Request(method="GET", target=url.path or "/", headers=headers)
+    )
 
     if url.scheme == "https":
         reader, writer = await asyncio.open_connection(
-            url.hostname, url.port or 443, ssl=True)
+            url.hostname, url.port or 443, ssl=True
+        )
     elif url.scheme == "http":
-        reader, writer = await asyncio.open_connection(
-            url.hostname, url.port or 80)
+        reader, writer = await asyncio.open_connection(url.hostname, url.port or 80)
     else:
         raise ValueError("Unknown scheme '{url.scheme}'")
 
@@ -43,7 +45,9 @@ async def get_json(url):
                 conn.receive_data(await reader.read(4096))
             elif isinstance(event, h11.Response):
                 if event.status_code != 200:
-                    raise ProtocolError(f"Expected status code 200, got {event.status_code}")
+                    raise ProtocolError(
+                        f"Expected status code 200, got {event.status_code}"
+                    )
             elif isinstance(event, h11.Data):
                 yield event.data
             elif isinstance(event, (h11.EndOfMessage, h11.PAUSED)):

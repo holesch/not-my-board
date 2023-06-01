@@ -123,7 +123,7 @@ class Proxy:
         if not self._is_receiving:
             raise RuntimeError("IO loop is not running, can't receive responses")
 
-        if kwargs.pop('_notification', False):
+        if kwargs.pop("_notification", False):
             id_ = None
         else:
             id_ = self._next_id
@@ -154,15 +154,16 @@ class Message:
     def parse_id(cls, raw_data):
         data = json.loads(raw_data)
         if cls._is_id_required or "id" in data:
-            assert isinstance(data["id"], (str, int)), \
-                    "\"id\" must be a string or number"
+            assert isinstance(data["id"], (str, int)), '"id" must be a string or number'
         return data.get("id"), data
 
     def __bytes__(self):
-        return json.dumps({
-            "jsonrpc": "2.0",
-            **self._body,
-        }).encode()
+        return json.dumps(
+            {
+                "jsonrpc": "2.0",
+                **self._body,
+            }
+        ).encode()
 
 
 class Request(Message):
@@ -187,10 +188,9 @@ class Request(Message):
     @classmethod
     def from_data(cls, data):
         method = data["method"]
-        assert isinstance(method, str), "\"method\" must be a string"
+        assert isinstance(method, str), '"method" must be a string'
         params = data.get("params", [])
-        assert isinstance(params, (list, dict)), \
-            "\"params\" must be a structured value"
+        assert isinstance(params, (list, dict)), '"params" must be a structured value'
         return cls(method, params, data.get("id"))
 
 
@@ -198,10 +198,7 @@ class Response(Message):
     _is_id_required = True
 
     def __init__(self, result, id_):
-        self._body = {
-            "result": result,
-            "id": id_
-        }
+        self._body = {"result": result, "id": id_}
         self.result = result
         self.id = id_
 
@@ -221,7 +218,7 @@ class ErrorResponse(Response):
                 "code": code,
                 "message": message,
             },
-            "id": id_
+            "id": id_,
         }
         if data is not None:
             self._body["error"]["data"] = data

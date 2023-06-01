@@ -66,7 +66,8 @@ def _find_spec_file(name):
                 path = home
         else:
             config_home = pathlib.Path(
-                    os.environ.get("XDG_CONFIG_HOME", home / ".config"))
+                os.environ.get("XDG_CONFIG_HOME", home / ".config")
+            )
             spec_file = config_home / "not-my-board" / "specs" / f"{name}.toml"
             if not spec_file.is_file():
                 raise ValueError(f"No spec file exists for name {name}")
@@ -77,7 +78,9 @@ def _find_spec_file(name):
 @contextlib.asynccontextmanager
 async def agent_proxy():
     runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
-    reader, writer = await asyncio.open_unix_connection(runtime_dir / "not-my-board.sock")
+    reader, writer = await asyncio.open_unix_connection(
+        runtime_dir / "not-my-board.sock"
+    )
 
     async def send(data):
         writer.write(data + b"\n")

@@ -15,7 +15,7 @@ valid_tokens = ("dummy-token-1", "dummy-token-2")
 
 
 def serve():
-    asgineer.run(asgi_app, 'uvicorn', 'localhost:2092')
+    asgineer.run(asgi_app, "uvicorn", "localhost:2092")
 
 
 @asgineer.to_asgi
@@ -23,8 +23,8 @@ async def asgi_app(request):
     if request.path == "/ws" and isinstance(request, asgineer.WebsocketRequest):
         return await websocket_handler(request)
     elif request.path == "/api/v1/places":
-        return { "places": [p.desc for p in Place.all()] }
-    return 404, {}, 'Page not found'
+        return {"places": [p.desc for p in Place.all()]}
+    return 404, {}, "Page not found"
 
 
 async def websocket_handler(ws):
@@ -133,8 +133,7 @@ class Place:
 
     @classmethod
     async def reserve(cls, candidate_ids, ctx):
-        existing_candidates = {id_ for id_ in candidate_ids
-                if id_ in cls._all_places}
+        existing_candidates = {id_ for id_ in candidate_ids if id_ in cls._all_places}
         if not existing_candidates:
             raise RuntimeError("None of the candidates exist anymore")
 
@@ -149,8 +148,9 @@ class Place:
             place = cls._all_places[reserved_id]
         else:
             logger.debug(
-                    "No places available, adding request to queue: %s",
-                    str(existing_candidates))
+                "No places available, adding request to queue: %s",
+                str(existing_candidates),
+            )
             future = asyncio.get_running_loop().create_future()
             entry = (existing_candidates, ctx, future)
             cls._wait_queue.append(entry)
@@ -186,6 +186,7 @@ class Place:
                 await cls._all_places[place_id]._exporter.set_allowed_ips([])
         else:
             logger.info("Place returned, but it doesn't exist: %d", place_id)
+
 
 class _ReservationContext:
     def __init__(self, client_ip):

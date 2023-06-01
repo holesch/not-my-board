@@ -39,7 +39,8 @@ class Agent:
             uri = f"{ws_scheme}://{url.netloc}/ws"
             headers = {"Authorization": "Bearer dummy-token-1"}
             ws = await stack.enter_async_context(
-                    websockets.connect(uri, extra_headers=headers))
+                websockets.connect(uri, extra_headers=headers)
+            )
 
             async def receive_iter():
                 try:
@@ -53,8 +54,8 @@ class Agent:
             stack.push_async_callback(self._cleanup)
 
             self._unix_server = await asyncio.start_unix_server(
-                self._handle_client,
-                runtime_dir / "not-my-board.sock")
+                self._handle_client, runtime_dir / "not-my-board.sock"
+            )
             await stack.enter_async_context(self._unix_server)
 
             self._stack = stack.pop_all()
@@ -75,8 +76,8 @@ class Agent:
     # TODO: hide from JSON-RPC interface
     async def serve_forever(self):
         await util.run_concurrently(
-                self._unix_server.serve_forever(),
-                self._server_proxy.io_loop())
+            self._unix_server.serve_forever(), self._server_proxy.io_loop()
+        )
 
     @util.log_exception
     async def _handle_client(self, reader, writer):
@@ -89,10 +90,10 @@ class Agent:
 
     async def reserve(self, name, spec_file):
         if name in self._reserved_places:
-            raise RuntimeError(f"A place named \"{name}\" is already reserved")
+            raise RuntimeError(f'A place named "{name}" is already reserved')
 
         if name in self._pending:
-            raise RuntimeError(f"A place named \"{name}\" is currently being reserved")
+            raise RuntimeError(f'A place named "{name}" is currently being reserved')
 
         self._pending.add(name)
         try:
@@ -118,13 +119,13 @@ class Agent:
         reserved_place = self._reserved_places[name]
         async with reserved_place.lock:
             if reserved_place.is_attached:
-                raise RuntimeError(f"Place \"{name}\" is still attached")
+                raise RuntimeError(f'Place "{name}" is still attached')
             await self._server_proxy.return_reservation(reserved_place.id)
             del self._reserved_places[name]
 
     async def attach(self, name):
         if name not in self._reserved_places:
-            raise RuntimeError(f"A place named \"{name}\" is not reserved")
+            raise RuntimeError(f'A place named "{name}" is not reserved')
 
         reserved_place = self._reserved_places[name]
         async with reserved_place.lock:
@@ -143,8 +144,7 @@ def _filter_places(spec, places):
     reserved_places = {}
 
     spec_part_sets = [
-        (name, _part_to_set(spec_part))
-        for name, spec_part in spec.parts.items()
+        (name, _part_to_set(spec_part)) for name, spec_part in spec.parts.items()
     ]
 
     for place in places:
@@ -184,9 +184,10 @@ def _find_matching(spec_part_sets, place):
 
 def _part_to_set(part):
     return (
-            {f"compatible:{c}" for c in part.compatible} |
-            {f"usb:{k}" for k in part.usb} |
-            {f"tcp:{k}" for k in part.tcp})
+        {f"compatible:{c}" for c in part.compatible}
+        | {f"usb:{k}" for k in part.usb}
+        | {f"tcp:{k}" for k in part.tcp}
+    )
 
 
 class ReservedPlace:
@@ -204,29 +205,31 @@ class ReservedPlace:
 
             for usb_name, usb_spec in spec_part.usb.items():
                 self._tunnels.append(
-                        UsbTunnel(
-                            name=f"{name}.{usb_name}",
-                            proxy_url=proxy_url,
-                            usbid=place_part.usb[usb_name].usbid,
-                            vhci_port=usb_spec.vhci_port))
+                    UsbTunnel(
+                        name=f"{name}.{usb_name}",
+                        proxy_url=proxy_url,
+                        usbid=place_part.usb[usb_name].usbid,
+                        vhci_port=usb_spec.vhci_port,
+                    )
+                )
 
             for tcp_name, tcp_spec in spec_part.tcp.items():
                 self._tunnels.append(
-                        TcpTunnel(
-                            name=f"{name}.{tcp_name}",
-                            proxy_url=proxy_url,
-                            remote_host=place_part.tcp[tcp_name].host,
-                            remote_port=place_part.tcp[tcp_name].port,
-                            local_port=tcp_spec.local_port))
+                    TcpTunnel(
+                        name=f"{name}.{tcp_name}",
+                        proxy_url=proxy_url,
+                        remote_host=place_part.tcp[tcp_name].host,
+                        remote_port=place_part.tcp[tcp_name].port,
+                        local_port=tcp_spec.local_port,
+                    )
+                )
 
     async def attach(self):
-        await util.run_concurrently(
-                *[tunnel.open() for tunnel in self._tunnels])
+        await util.run_concurrently(*[tunnel.open() for tunnel in self._tunnels])
         self._is_attached = True
 
     async def detach(self):
-        await util.run_concurrently(
-                *[tunnel.close() for tunnel in self._tunnels])
+        await util.run_concurrently(*[tunnel.close() for tunnel in self._tunnels])
         self._is_attached = False
 
     @property
