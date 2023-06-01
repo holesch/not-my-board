@@ -1,0 +1,25 @@
+name: Static Checks
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.11
+    - name: Install dependencies
+      run: |
+        pip install hatch
+        hatch env create
+    - name: Analysing the code
+      run: |
+        PS4=">>> "
+        set -x
+        . "$(hatch env find)/bin/activate"
+        pylint not_my_board
+        black --check --quiet not_my_board
+        isort --check not_my_board
