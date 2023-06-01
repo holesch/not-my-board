@@ -79,7 +79,7 @@ class Agent:
             self._unix_server.serve_forever(), self._server_proxy.io_loop()
         )
 
-    @util.log_exception
+    @util.connection_handler
     async def _handle_client(self, reader, writer):
         async def send(data):
             writer.write(data + b"\n")

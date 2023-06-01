@@ -7,7 +7,8 @@ import os
 import pathlib
 import socket
 import struct
-import traceback
+
+import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +45,9 @@ class UsbIpDevice:
         self._refresh_event = asyncio.Event()
         self._is_exported = False
 
+    @util.connection_handler
     async def handle_client(self, reader, writer):
-        try:
-            await _UsbIpConnection(self, reader, writer).handle_client()
-        except Exception:
-            traceback.print_exc()
-        finally:
-            try:
-                writer.close()
-                await writer.wait_closed()
-            except Exception:
-                pass
+        await _UsbIpConnection(self, reader, writer).handle_client()
 
     def refresh(self):
         self._refresh_event.set()

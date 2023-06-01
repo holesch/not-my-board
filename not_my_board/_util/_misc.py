@@ -1,5 +1,3 @@
-import functools
-import traceback
 import urllib.parse
 
 import websockets
@@ -19,14 +17,3 @@ def ws_connect(url, auth=None):
     headers = {"Authorization": auth} if auth else {}
 
     return websockets.connect(uri, extra_headers=headers)
-
-
-def log_exception(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        try:
-            await func(*args, **kwargs)
-        except Exception:
-            traceback.print_exc()
-
-    return wrapper

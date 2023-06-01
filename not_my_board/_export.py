@@ -36,6 +36,14 @@ class Exporter:
         export_desc_content = export_desc_path.read_text()
         self._place = models.ExportDesc(**tomllib.loads(export_desc_content))
 
+        tcp_targets = {
+            f"{tcp.host}:{tcp.port}".encode()
+            for part in self._place.parts
+            for _, tcp in part.tcp.items()
+        }
+        self._usb_target = {b"usb.not-my-board.localhost:3240"}
+        self._allowed_proxy_targets = tcp_targets | self._usb_target
+
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
             url = f"{self._server_url}/ws"
@@ -78,27 +86,44 @@ class Exporter:
         print(f"setting allowed IPs: {ips}")
         self._allowed_ips = ips
 
-    @util.log_exception
+    @util.connection_handler
     async def _handle_client(self, reader, writer):
-        con = HttpProxyConnection(reader, writer)
+        con = HttpProxyConnection(reader, writer, self._allowed_proxy_targets)
         host, _ = writer.transport.get_extra_info("peername")
         client_ip = ipaddress.ip_address(host)
 
         if client_ip in self._allowed_ips:
             target, trailing_data = await con.receive_target()
             logger.info("Proxy CONNECT target: %s", target)
-            logger.debug("Trailing data: %s", str(trailing_data))
 
-            writer.write(
-                b"HTTP/1.1 200 OK\r\n"
-                + b"Content-Length: 14\r\n"
-                + b"Connection: close\r\n"
-                + b"\r\n"
-                + b"Hello, World!\n"
-            )
-            await writer.drain()
+            await self._tunnel(reader, writer, target, trailing_data)
         else:
             await con.deny_request()
+
+    async def _tunnel(self, client_r, client_w, target, trailing_data):
+        if target == "usb.not-my-board.localhost:3240":
+            raise ProtocolError("USB/IP not supported, yet")
+        else:
+            host, port = target.split(b":", 1)
+            port = int(port)
+            remote_r, remote_w = await asyncio.open_connection(host, port)
+
+            remote_w.write(trailing_data)
+            await remote_w.drain()
+
+            async def forward(reader, writer):
+                buffer_size = 32 * 1024
+                data = await reader.read(buffer_size)
+                if not data:
+                    writer.write_eof()
+                    return
+
+                writer.write(data)
+                await writer.drain()
+
+            await util.run_concurrently(
+                forward(client_r, remote_w), forward(remote_r, client_w)
+            )
 
 
 class ExporterApi:
@@ -121,17 +146,22 @@ class HttpProxyConnection:
         b"This is a not-my-board export server. "
         b"You probably want to use not-my-board, instead of connecting directly.\n"
     )
+    _msg_wrong_ip = (
+        b"This is a not-my-board export server. Your IP address is not allowed.\n"
+    )
+    _msg_wrong_target = (
+        b"This is a not-my-board export server. "
+        b"The requested target is not allowed.\n"
+    )
 
-    def __init__(self, reader, writer):
+    def __init__(self, reader, writer, allowed_targets):
         self._conn = h11.Connection(h11.SERVER)
         self._reader = reader
         self._writer = writer
+        self._allowed_targets = allowed_targets
 
     async def deny_request(self):
-        body = (
-            b"This is a not-my-board export server. Your IP address is not allowed.\n"
-        )
-        await self._send_response(403, body)
+        await self._send_response(403, self._msg_wrong_ip)
 
     async def receive_target(self):
         try:
@@ -143,8 +173,14 @@ class HttpProxyConnection:
                 elif isinstance(event, h11.Request):
                     request = event
                     if request.method == b"CONNECT":
-                        await self._send_response(200)
-                        return request.target, self._conn.trailing_data
+                        if request.target in self._allowed_targets:
+                            await self._send_response(200)
+                            return request.target, self._conn.trailing_data[0]
+                        else:
+                            await self._send_response(403, self._msg_wrong_target)
+                            raise ProtocolError(
+                                f"Forbidden target requested: {request.target}"
+                            )
                     else:
                         headers = [("Allow", "CONNECT")]
                         await self._send_response(405, self._msg_wrong_method, headers)
