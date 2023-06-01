@@ -34,6 +34,7 @@ def main():
     subparser = add_subcommand("serve", help="start the board farm server")
 
     subparser = add_subcommand("export", help="make connected boards available in the board farm")
+    subparser.add_argument("server_url", help="http(s) URL of the server")
     subparser.add_argument("export_description", type=pathlib.Path, help="path to a export description")
 
     subparser = add_subcommand("agent", help="start an agent")
@@ -70,7 +71,7 @@ def _serve_command(args):
     serve()
 
 async def _export_command(args):
-    await export(args.export_description)
+    await export(args.server_url, args.export_description)
 
 async def _agent_command(args):
     await agent(args.server_url)

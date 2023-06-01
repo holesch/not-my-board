@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
 import asyncio
-import websockets
 import contextlib
-import ipaddress
-import socket
-import functools
-import h11
-import email.utils
 import datetime
+import email.utils
+import ipaddress
 import logging
-import traceback
+import socket
+
+import h11
+import websockets
+
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
+import not_my_board._util as util
 
 try:
     import tomllib
@@ -23,42 +24,31 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 
-async def export(place):
-    async with Exporter(place) as exporter:
+async def export(server_url, place):
+    async with Exporter(server_url, place) as exporter:
         await exporter.serve_forever()
 
 
-def log_exception(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        try:
-            await func(*args, **kwargs)
-        except Exception:
-            traceback.print_exc()
-    return wrapper
-
-
 class Exporter:
-    def __init__(self, export_desc_path):
+    def __init__(self, server_url, export_desc_path):
+        self._server_url = server_url
         self._allowed_ips = []
         export_desc_content = export_desc_path.read_text()
         self._place = models.ExportDesc(**tomllib.loads(export_desc_content))
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
-            uri = "ws://localhost:2092/ws"
-            headers = {"Authorization": "Bearer dummy-token-1"}
-            self._ws = await stack.enter_async_context(
-                    websockets.connect(uri, extra_headers=headers))
+            url = f"{self._server_url}/ws"
+            auth = "Bearer dummy-token-1"
+            self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
             self._receive_iterator = self._receive_iter()
 
             server_proxy = jsonrpc.Proxy(self._ws.send, self._receive_iterator)
             await server_proxy.register_exporter(self._place.dict(), _notification=True)
 
             self._http_server = await asyncio.start_server(
-                    self._handle_client,
-                    port=self._place.port,
-                    family=socket.AF_INET)
+                self._handle_client, port=self._place.port, family=socket.AF_INET
+            )
             await stack.enter_async_context(self._http_server)
 
             self._stack = stack.pop_all()
@@ -70,19 +60,11 @@ class Exporter:
 
     async def serve_forever(self):
         exporter_api = ExporterApi(self)
-        ws_server = jsonrpc.Server(
-                self._ws.send, self._receive_iterator, exporter_api)
+        ws_server = jsonrpc.Server(self._ws.send, self._receive_iterator, exporter_api)
 
-        tasks = [asyncio.create_task(coro) for coro in [
-                    self._http_server.serve_forever(),
-                    ws_server.serve_forever(),
-                ]]
-        try:
-            await asyncio.gather(*tasks)
-        finally:
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
+        await util.run_concurrently(
+            self._http_server.serve_forever(), ws_server.serve_forever()
+        )
 
     async def _receive_iter(self):
         try:
@@ -96,21 +78,24 @@ class Exporter:
         print(f"setting allowed IPs: {ips}")
         self._allowed_ips = ips
 
-    @log_exception
+    @util.log_exception
     async def _handle_client(self, reader, writer):
-        host, port = writer.transport.get_extra_info("peername")
-        client_ip = ipaddress.ip_address(host)
         con = HttpProxyConnection(reader, writer)
+        host, _ = writer.transport.get_extra_info("peername")
+        client_ip = ipaddress.ip_address(host)
+
         if client_ip in self._allowed_ips:
-            target = await con.receive_target()
-            logger.info(f"Proxy CONNECT target: {target}")
+            target, trailing_data = await con.receive_target()
+            logger.info("Proxy CONNECT target: %s", target)
+            logger.debug("Trailing data: %s", str(trailing_data))
 
             writer.write(
-                    b"HTTP/1.1 200 OK\r\n" +
-                    b"Content-Length: 14\r\n" +
-                    b"Connection: close\r\n" +
-                    b"\r\n" +
-                    b"Hello, World!\n")
+                b"HTTP/1.1 200 OK\r\n"
+                + b"Content-Length: 14\r\n"
+                + b"Connection: close\r\n"
+                + b"\r\n"
+                + b"Hello, World!\n"
+            )
             await writer.drain()
         else:
             await con.deny_request()
@@ -132,13 +117,20 @@ def format_date_time(dt=None):
 
 
 class HttpProxyConnection:
+    _msg_wrong_method = (
+        b"This is a not-my-board export server. "
+        b"You probably want to use not-my-board, instead of connecting directly.\n"
+    )
+
     def __init__(self, reader, writer):
         self._conn = h11.Connection(h11.SERVER)
         self._reader = reader
         self._writer = writer
 
     async def deny_request(self):
-        body = b"This is a not-my-board export server. Your IP address is not allowed.\n"
+        body = (
+            b"This is a not-my-board export server. Your IP address is not allowed.\n"
+        )
         await self._send_response(403, body)
 
     async def receive_target(self):
@@ -148,18 +140,17 @@ class HttpProxyConnection:
                 if event is h11.NEED_DATA:
                     data = await self._reader.read(8 * 1024)
                     self._conn.receive_data(data)
-                elif type(event) is h11.Request:
+                elif isinstance(event, h11.Request):
                     request = event
                     if request.method == b"CONNECT":
                         await self._send_response(200)
-                        return request.target
+                        return request.target, self._conn.trailing_data
                     else:
-                        body = b"This is a not-my-board export server. You probably want to use not-my-board, instead of connecting directly.\n"
                         headers = [("Allow", "CONNECT")]
-                        await self._send_response(405, body, headers)
-                        raise Exception(f"Unexpected Method: {request.method}")
+                        await self._send_response(405, self._msg_wrong_method, headers)
+                        raise ProtocolError(f"Unexpected Method: {request.method}")
                 else:
-                    raise Exception(f"Unexpected Event: {event}")
+                    raise ProtocolError(f"Unexpected Event: {event}")
         except Exception as e:
             if self._conn.our_state in {h11.IDLE, h11.SEND_RESPONSE}:
                 if isinstance(e, h11.RemoteProtocolError):
@@ -202,3 +193,7 @@ class HttpProxyConnection:
         data = b"".join([self._conn.send(event) for event in events])
         self._writer.write(data)
         await self._writer.drain()
+
+
+class ProtocolError(Exception):
+    pass

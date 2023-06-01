@@ -47,6 +47,10 @@ path = "not_my_board/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
+  "black",
+  "isort",
+  "mypy",
+  "pylint",
   "pytest",
   "pytest-cov",
 ]
@@ -69,4 +73,26 @@ exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
+]
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+    "attribute-defined-outside-init",
+    "fixme",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "no-else-return",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "unspecified-encoding",
+]
+# allow short names
+variable-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
+argument-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
+attr-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
+# pylint doesn't support lazy_import()
+generated-members = [
+    "websockets",
+    "pydantic",
 ]
