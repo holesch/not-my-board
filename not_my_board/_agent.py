@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import logging
 import os
 import pathlib
 import urllib.parse
@@ -13,10 +14,7 @@ import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
 import not_my_board._util as util
 
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
+logger = logging.getLogger(__name__)
 
 
 async def agent(server_url):
@@ -53,10 +51,9 @@ class Agent:
 
             stack.push_async_callback(self._cleanup)
 
-            self._unix_server = await asyncio.start_unix_server(
-                self._handle_client, runtime_dir / "not-my-board.sock"
+            self._unix_server = await stack.enter_async_context(
+                util.UnixServer(self._handle_client, runtime_dir / "not-my-board.sock")
             )
-            await stack.enter_async_context(self._unix_server)
 
             self._stack = stack.pop_all()
             await self._stack.__aenter__()
@@ -67,7 +64,8 @@ class Agent:
 
     async def _cleanup(self):
         for _, place in self._reserved_places.items():
-            await place.detach()
+            if place.is_attached:
+                await place.detach()
 
         while self._reserved_places:
             _, place = self._reserved_places.popitem()
@@ -79,7 +77,6 @@ class Agent:
             self._unix_server.serve_forever(), self._server_proxy.io_loop()
         )
 
-    @util.connection_handler
     async def _handle_client(self, reader, writer):
         async def send(data):
             writer.write(data + b"\n")
@@ -97,7 +94,7 @@ class Agent:
 
         self._pending.add(name)
         try:
-            spec_content = tomllib.loads(pathlib.Path(spec_file).read_text())
+            spec_content = util.toml_loads(pathlib.Path(spec_file).read_text())
             spec = models.Spec(name=name, **spec_content)
 
             response = await http.get_json(f"{self._server_url}/api/v1/places")
@@ -195,9 +192,9 @@ class ReservedPlace:
         self._spec = spec
         self._place = place
         self._tunnels = []
-        self._is_attached = False
+        self._stack = None
         self.lock = asyncio.Lock()
-        proxy_url = f"http://{place.host}:{place.port}"
+        proxy = str(place.host), place.port
 
         for name, place_part_idx in matching:
             spec_part = spec.parts[name]
@@ -207,7 +204,7 @@ class ReservedPlace:
                 self._tunnels.append(
                     UsbTunnel(
                         name=f"{name}.{usb_name}",
-                        proxy_url=proxy_url,
+                        proxy=proxy,
                         usbid=place_part.usb[usb_name].usbid,
                         vhci_port=usb_spec.vhci_port,
                     )
@@ -217,20 +214,32 @@ class ReservedPlace:
                 self._tunnels.append(
                     TcpTunnel(
                         name=f"{name}.{tcp_name}",
-                        proxy_url=proxy_url,
-                        remote_host=place_part.tcp[tcp_name].host,
-                        remote_port=place_part.tcp[tcp_name].port,
+                        proxy=proxy,
+                        remote=(
+                            place_part.tcp[tcp_name].host,
+                            place_part.tcp[tcp_name].port,
+                        ),
                         local_port=tcp_spec.local_port,
                     )
                 )
 
     async def attach(self):
-        await util.run_concurrently(*[tunnel.open() for tunnel in self._tunnels])
-        self._is_attached = True
+        if self._stack is not None:
+            raise RuntimeError('Place "{self._spec.name}" is already attached')
+
+        async with contextlib.AsyncExitStack() as stack:
+            for tunnel in self._tunnels:
+                await stack.enter_async_context(tunnel)
+            self._stack = stack.pop_all()
 
     async def detach(self):
-        await util.run_concurrently(*[tunnel.close() for tunnel in self._tunnels])
-        self._is_attached = False
+        if self._stack is None:
+            raise RuntimeError('Place "{self._spec.name}" is not attached')
+
+        try:
+            await self._stack.aclose()
+        finally:
+            self._stack = None
 
     @property
     def id(self):
@@ -238,27 +247,56 @@ class ReservedPlace:
 
     @property
     def is_attached(self):
-        return self._is_attached
+        return self._stack is not None
 
 
-# TODO implement tunnels
+# TODO implement USB tunnel
 class UsbTunnel:
-    def __init__(self, name, proxy_url, usbid, vhci_port):
+    def __init__(self, name, proxy, usbid, vhci_port):
         pass
 
-    async def open(self):
-        pass
+    async def __aenter__(self):
+        return self
 
-    async def close(self):
+    async def __aexit__(self, exc_type, exc, tb):
         pass
 
 
 class TcpTunnel:
-    def __init__(self, name, proxy_url, remote_host, remote_port, local_port):
-        pass
+    def __init__(self, name, proxy, remote, local_port):
+        self._name = name
+        self._proxy = proxy
+        self._remote = remote
+        self._local_port = local_port
 
-    async def open(self):
-        pass
+    async def __aenter__(self):
+        async with contextlib.AsyncExitStack() as stack:
+            ready_event = asyncio.Event()
+            task = asyncio.create_task(self._tunnel_task(ready_event))
+            stack.push_async_callback(util.cancel_tasks, [task])
+            await ready_event.wait()
+            self._stack = stack.pop_all()
+        return self
 
-    async def close(self):
-        pass
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._stack.__aexit__(exc_type, exc, tb)
+
+    async def _tunnel_task(self, ready_event):
+        localhost = "127.0.0.1"
+        async with util.Server(
+            self._handle_client, localhost, self._local_port
+        ) as server:
+            ready_event.set()
+            await server.serve_forever()
+
+    async def _handle_client(self, client_r, client_w):
+        logger.debug("%s: Opening tunnel", self._name)
+        async with http.open_tunnel(*self._proxy, *self._remote) as (
+            remote_r,
+            remote_w,
+            trailing_data,
+        ):
+            logger.debug("%s: Tunnel created, relaying data", self._name)
+            client_w.write(trailing_data)
+            await client_w.drain()
+            await util.relay_streams(client_r, client_w, remote_r, remote_w)

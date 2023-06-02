@@ -11,11 +11,6 @@ from not_my_board._serve import serve
 
 from ..__about__ import __version__
 
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
-
 
 def main():
     logging.basicConfig(

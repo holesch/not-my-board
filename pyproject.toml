@@ -99,3 +99,6 @@ generated-members = [
     "websockets",
     "pydantic",
 ]
+
+[tool.isort]
+profile = "black"

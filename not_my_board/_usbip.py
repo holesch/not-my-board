@@ -45,7 +45,6 @@ class UsbIpDevice:
         self._refresh_event = asyncio.Event()
         self._is_exported = False
 
-    @util.connection_handler
     async def handle_client(self, reader, writer):
         await _UsbIpConnection(self, reader, writer).handle_client()
 
@@ -501,7 +500,7 @@ async def _main():
             await attach(reader, writer, args.busid, args.vhci_port)
     else:
         device = UsbIpDevice(args.busid)
-        server = await asyncio.start_server(
+        server = util.Server(
             device.handle_client, port=args.port, family=socket.AF_INET
         )
         async with server:

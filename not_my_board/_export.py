@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import asyncio
 import contextlib
 import datetime
 import email.utils
@@ -15,12 +14,6 @@ import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
 import not_my_board._util as util
 
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +27,7 @@ class Exporter:
         self._server_url = server_url
         self._allowed_ips = []
         export_desc_content = export_desc_path.read_text()
-        self._place = models.ExportDesc(**tomllib.loads(export_desc_content))
+        self._place = models.ExportDesc(**util.toml_loads(export_desc_content))
 
         tcp_targets = {
             f"{tcp.host}:{tcp.port}".encode()
@@ -54,10 +47,11 @@ class Exporter:
             server_proxy = jsonrpc.Proxy(self._ws.send, self._receive_iterator)
             await server_proxy.register_exporter(self._place.dict(), _notification=True)
 
-            self._http_server = await asyncio.start_server(
-                self._handle_client, port=self._place.port, family=socket.AF_INET
+            self._http_server = await stack.enter_async_context(
+                util.Server(
+                    self._handle_client, port=self._place.port, family=socket.AF_INET
+                )
             )
-            await stack.enter_async_context(self._http_server)
 
             self._stack = stack.pop_all()
             await self._stack.__aenter__()
@@ -86,7 +80,6 @@ class Exporter:
         print(f"setting allowed IPs: {ips}")
         self._allowed_ips = ips
 
-    @util.connection_handler
     async def _handle_client(self, reader, writer):
         con = HttpProxyConnection(reader, writer, self._allowed_proxy_targets)
         host, _ = writer.transport.get_extra_info("peername")
@@ -106,24 +99,11 @@ class Exporter:
         else:
             host, port = target.split(b":", 1)
             port = int(port)
-            remote_r, remote_w = await asyncio.open_connection(host, port)
 
-            remote_w.write(trailing_data)
-            await remote_w.drain()
-
-            async def forward(reader, writer):
-                buffer_size = 32 * 1024
-                data = await reader.read(buffer_size)
-                if not data:
-                    writer.write_eof()
-                    return
-
-                writer.write(data)
-                await writer.drain()
-
-            await util.run_concurrently(
-                forward(client_r, remote_w), forward(remote_r, client_w)
-            )
+            async with util.connect(host, port) as (remote_r, remote_w):
+                remote_w.write(trailing_data)
+                await remote_w.drain()
+                await util.relay_streams(client_r, client_w, remote_r, remote_w)
 
 
 class ExporterApi:
