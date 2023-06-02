@@ -67,10 +67,6 @@ class Agent:
             if place.is_attached:
                 await place.detach()
 
-        while self._reserved_places:
-            _, place = self._reserved_places.popitem()
-            await self._server_proxy.return_reservation(place.id)
-
     # TODO: hide from JSON-RPC interface
     async def serve_forever(self):
         await util.run_concurrently(
