@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import asyncio
 import contextlib
 import datetime
 import email.utils
@@ -25,7 +26,7 @@ async def export(server_url, place):
 class Exporter:
     def __init__(self, server_url, export_desc_path):
         self._server_url = server_url
-        self._allowed_ips = []
+        self._ip_to_tasks_map = {}
         export_desc_content = export_desc_path.read_text()
         self._place = models.ExportDesc(**util.toml_loads(export_desc_content))
 
@@ -76,16 +77,38 @@ class Exporter:
             pass
 
     async def set_allowed_ips(self, ips):
-        ips = list(map(ipaddress.ip_address, ips))
-        print(f"setting allowed IPs: {ips}")
-        self._allowed_ips = ips
+        new_ips = set(map(ipaddress.ip_address, ips))
+        old_ips = set(self._ip_to_tasks_map)
+
+        removed_ips = old_ips - new_ips
+        added_ips = new_ips - old_ips
+
+        if removed_ips:
+            logger.info("Allowed IPs removed: %s", ", ".join(map(str, removed_ips)))
+
+        if added_ips:
+            logger.info("Allowed IPs added: %s", ", ".join(map(str, added_ips)))
+
+        to_close = [
+            task for ip in removed_ips for task in self._ip_to_tasks_map.pop(ip)
+        ]
+
+        for ip in added_ips:
+            self._ip_to_tasks_map[ip] = set()
+
+        await util.cancel_tasks(to_close)
 
     async def _handle_client(self, reader, writer):
         con = HttpProxyConnection(reader, writer, self._allowed_proxy_targets)
         host, _ = writer.transport.get_extra_info("peername")
         client_ip = ipaddress.ip_address(host)
 
-        if client_ip in self._allowed_ips:
+        if client_ip in self._ip_to_tasks_map:
+            task = asyncio.current_task()
+            tasks = self._ip_to_tasks_map[client_ip]
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+
             target, trailing_data = await con.receive_target()
             logger.info("Proxy CONNECT target: %s", target)
 
