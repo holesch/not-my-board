@@ -3,7 +3,7 @@ name: Static Checks
 on: [push]
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -15,11 +15,13 @@ jobs:
       run: |
         pip install hatch
         hatch env create
-    - name: Analysing the code
-      run: |
-        PS4=">>> "
-        set -x
+        # Make venv persistent across steps
         . "$(hatch env find)/bin/activate"
-        pylint not_my_board
-        black --check --quiet not_my_board
-        isort --check not_my_board
+        echo "PATH=$PATH" >> "$GITHUB_ENV"
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+    - name: Lint with Pylint
+      run: pylint --score=n not_my_board
+    - name: Check format with Black
+      run: black --check --quiet not_my_board
+    - name: Check import statement order with isort
+      run: isort --check not_my_board
