@@ -1,0 +1,427 @@
+#!/bin/sh -e
+
+usage() {
+    cat << EOF
+usage: vmctl [-h] command ...
+       vmctl makeimg
+       vmctl run vm
+       vmctl configure vm
+       vmctl ssh vm [prog ...]
+       vmctl usb attach|detach
+EOF
+}
+
+help() {
+    usage
+    cat << EOF
+
+Script to control VMs for testing not-my-board
+
+positional arguments:
+  command      for more info use: vmctl <command> -h
+    makeimg    create images used by VMs
+    run        run VM
+    configure  configure VM
+    ssh        ssh into VM
+    usb        control the USB device connected to the exporter
+  vm           select VM, one of "server", "exporter", "client"
+  prog         program and arguments to run in VM
+EOF
+    exit 0
+}
+
+main() {
+    while getopts ":h" c; do
+        case "${c}" in
+            h) help ;;
+            *) usage_error "unrecognized option"
+        esac
+    done
+    shift $((OPTIND - 1))
+
+    if [ "$#" -lt 1 ]; then
+        usage_error "the following argument is required: command"
+    fi
+    command="$1"
+    shift
+
+    scriptdir="$(dirname "$(readlink -f "$0")")"
+    projectdir="$(dirname "$scriptdir")"
+    vmctldir=$scriptdir/_vmctl
+    imgdir=$vmctldir/img
+    kernel="$imgdir/kernel"
+    initramfs="$imgdir/initramfs"
+    disk="$imgdir/disk"
+
+    case "$command" in
+        makeimg|run|configure|ssh|usb)
+            "$command" "$@";;
+        *) usage_error "unrecognized command"
+    esac
+}
+
+makeimg() {
+    if [ "$(id -u)" != "0" ]; then
+        # apk runs post-install scripts in a chroot. fakechroot doesn't
+        # work with the statically linked apk binary.
+        echo "error: must be run as root" >&2
+        return 1
+    fi
+
+    work=$imgdir/work
+    mnt="$work/mnt"
+    disk_mnt="$work/disk"
+    rm -rf "$work"
+    mkdir -p \
+        "$mnt/dev" \
+        "$mnt/proc" \
+        "$mnt/run" \
+        "$mnt/sys" \
+        "$mnt/etc/apk" \
+        "$mnt/mnt" \
+        "$work/boot" \
+        "$disk_mnt" \
+        ;
+
+    ALPINE_RELEASE="v3.18"
+    download_alpine_package apk-tools-static 2.14.0-r2 \
+        c8465a56bac138677d3fb025f7e13a30d18210ef327880673314ad63d59c1977
+    download_alpine_package alpine-keys 2.4-r1 \
+        880983a4ba0e6403db432e7b2687af976e023567ab11d1428c758351011263e9
+
+    apk() {
+        "$work/apk-tools-static/sbin/apk.static" \
+            --keys-dir="$work/alpine-keys/etc/apk/keys" \
+            "$@"
+    }
+
+    cat > "$mnt/etc/apk/repositories" << EOF
+http://dl-cdn.alpinelinux.org/alpine/$ALPINE_RELEASE/main
+http://dl-cdn.alpinelinux.org/alpine/$ALPINE_RELEASE/community
+EOF
+
+    unmount=
+    trap unmount_all EXIT
+    add_bind_mount /dev
+    add_bind_mount /dev/pts
+    add_bind_mount /dev/shm
+    add_bind_mount /proc
+    add_bind_mount /run
+    add_bind_mount /sys
+    add_bind_mount "$projectdir" /mnt
+
+    kernel_variant=lts
+    apk add \
+        --update-cache \
+        --root="$mnt" \
+        --initdb \
+        --no-progress \
+        alpine-base \
+        alpine-conf \
+        doas \
+        "linux-$kernel_variant" \
+        linux-firmware-none \
+        openssh \
+        py3-hatchling \
+        py3-pip \
+        python3 \
+        tzdata \
+        ;
+
+    chroot "$mnt" /usr/bin/env - \
+        PATH=/sbin:/usr/sbin:/bin:/usr/bin \
+        HOME=/root \
+        /bin/sh < "$vmctldir/alpine-chroot-install.sh"
+
+    unmount_all
+
+    cp "$mnt/boot/vmlinuz-$kernel_variant" "$kernel"
+    # strip down initramfs
+    rm -rf "${mnt:?}/boot/"*
+
+    test -d "$mnt/etc/ssh"
+    install -m 0600 "$vmctldir/ssh_host_ed25519_key" "$mnt/etc/ssh"
+    install -m 0644 "$vmctldir/ssh_host_ed25519_key.pub" "$mnt/etc/ssh"
+
+    (
+        cd "$mnt"
+        find . | cpio --quiet -H newc -o | lz4 -l -9 -
+    ) > "$initramfs"
+
+    # create flash drive disk to test USB forwarding
+    truncate -s 64K "$disk"
+    chmod go+w "$disk"
+    mkfs.fat "$disk"
+    trap 'umount "$disk_mnt"' EXIT
+    mount -t vfat -oloop "$disk" "$disk_mnt"
+    echo 'Hello, World!' > "$disk_mnt/hello"
+}
+
+download_alpine_package() {
+    name="$1"
+    version="$2"
+    hash="$3"
+    package="$name-$version.apk"
+
+    if [ ! -e "$work/$package" ]; then
+        curl --silent -o "$work/$package" "https://dl-cdn.alpinelinux.org/alpine/$ALPINE_RELEASE/main/x86_64/$package"
+    fi
+    sha256sum --check --quiet << EOF
+$hash  $work/$package
+EOF
+    mkdir -p "$work/$name"
+    tar xzf "$work/$package" -C "$work/$name" --warning=no-unknown-keyword
+}
+
+add_bind_mount() {
+    path="$1"
+    dest="${2:-$path}"
+    unmount="umount \"$mnt$dest\" && $unmount"
+    mount --bind "$path" "$mnt$dest"
+}
+
+unmount_all() {
+    eval "${unmount% && }"
+    unmount=
+}
+
+run() {
+    if [ "$#" -lt 1 ]; then
+        usage_error "the following argument is required: vm"
+    fi
+    if [ "$#" -gt 1 ];then
+        usage_error "unrecognized argument: '$2'"
+    fi
+    vm="$1"
+
+    case "$vm" in
+        server)
+            qemu_exec \
+                qemu_forward_ssh 4022 \
+                qemu_virtfs \
+                qemu_vlan_server 5001 52:54:00:00:00:01 \
+                qemu_vlan_server 5002 52:54:00:00:00:02 \
+                ;;
+        exporter)
+            qemu_exec \
+                qemu_monitor 3001 \
+                qemu_forward_ssh 4122 \
+                qemu_virtfs \
+                qemu_vlan_client 5001 52:54:00:00:00:03 \
+                qemu_usb_device \
+                ;;
+        client)
+            qemu_exec \
+                qemu_forward_ssh 4222 \
+                qemu_virtfs \
+                qemu_vlan_client 5002 52:54:00:00:00:04 \
+                ;;
+        *) usage_error "unrecognized vm"
+    esac
+}
+
+qemu_exec() {
+    set -- "$@" exec qemu-system-x86_64
+    # use "Standard PC"
+    set -- "$@" -machine q35
+
+    if [ -e /dev/kvm ]; then
+        # use host CPU model
+        set -- "$@" -cpu host
+        # use kvm acceleration
+        set -- "$@" -accel kvm
+        # multi-core
+        set -- "$@" -smp cpus=8,sockets=1,cores=4,threads=2
+    else
+        # use "QEMU Virtual CPU"
+        set -- "$@" -cpu qemu64
+        # multi-core
+        set -- "$@" -smp cpus=4,sockets=1,cores=4,threads=1
+    fi
+
+    # set RAM size
+    set -- "$@" -m 4G
+    # use localtime instead of utc
+    set -- "$@" -rtc base=localtime
+    # Replace SeaBIOS with the quiet qboot firmware to not mess up
+    # serial output logs.
+    set -- "$@" -bios /usr/share/qemu/qboot.rom
+    # set Kernel and initramfs image
+    set -- "$@" -kernel "$kernel"
+    set -- "$@" -initrd "$initramfs"
+    # set Kernel command line
+    set -- "$@" -append "rdinit=/sbin/init root=/dev/ram0 console=ttyS0 quiet"
+    # Disable graphical output
+    set -- "$@" -nographic
+    if [ -t 0 ]; then
+        # Multiplex serial port and QEMU monitor: Check "C-a h" for help
+        set -- "$@" -serial mon:stdio
+    else
+        # Disable multiplexed monitor, if stdin is not a tty
+        set -- "$@" -serial stdio
+        set -- "$@" -monitor none
+    fi
+
+    "$@" # launch qemu or append more args
+}
+
+qemu_monitor() {
+    port="$1"
+    shift
+
+    # listen for monitor commands on port $port
+    set -- "$@" -monitor tcp:127.0.0.1:"$port",server=on,wait=off
+    "$@" # launch qemu or append more args
+}
+
+qemu_forward_ssh() {
+    port="$1"
+    shift
+
+    # Set up user mode network and forward connections to the host
+    # port $port to the guest SSH port.
+    set -- "$@" \
+        -device virtio-net,netdev=net0 \
+        -netdev user,id=net0,hostfwd=tcp:127.0.0.1:"$port"-:22
+
+    "$@" # launch qemu or append more args
+}
+
+qemu_virtfs() {
+    set -- "$@" -virtfs local,path=.,mount_tag=vfs,security_model=none,readonly=on
+    "$@" # launch qemu or append more args
+}
+
+qemu_vlan_server() {
+    port="$1"
+    mac="$2"
+    shift 2
+
+    if [ -z "$vlan_num" ]; then
+        vlan_num=0
+    else
+        vlan_num=$((vlan_num + 1))
+    fi
+
+    set -- "$@" -device virtio-net,netdev=vlan"$vlan_num",mac="$mac"
+    set -- "$@" -netdev socket,id=vlan"$vlan_num",listen=localhost:"$port"
+    "$@" # launch qemu or append more args
+}
+
+qemu_vlan_client() {
+    port="$1"
+    mac="$2"
+    shift 2
+
+    set -- "$@" -device virtio-net,netdev=vlan0,mac="$mac"
+    set -- "$@" -netdev socket,id=vlan0,connect=localhost:"$port"
+    "$@" # launch qemu or append more args
+}
+
+qemu_usb_device() {
+    # add USB controller
+    set -- "$@" -device qemu-xhci
+    # emulate flash drive
+    # set -- "$@" -drive if=none,id=drive0,format=raw,file="$disk"
+    # set -- "$@" -device usb-storage,drive=drive0,id=usb0
+    "$@" # launch qemu or append more args
+}
+
+configure() {
+    if [ "$#" -lt 1 ]; then
+        usage_error "the following argument is required: vm"
+    fi
+    if [ "$#" -gt 1 ];then
+        usage_error "unrecognized argument: '$2'"
+    fi
+    vm="$1"
+
+    wait_for_sshd "$vm"
+    ssh_vm "$vm" "doas sh" < "$vmctldir/configure-$vm.sh" >&2
+}
+
+wait_for_sshd() {
+    vm="$1"
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if ssh_vm "$vm" true 2>/dev/null; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+}
+
+ssh() {
+    if [ "$#" -lt 1 ]; then
+        usage_error "the following argument is required: vm"
+    fi
+
+    ssh_vm -e "$@"
+}
+
+ssh_vm() {
+    if [ "$1" = "-e" ]; then
+        run="exec"
+        shift
+    else
+        run="command"
+    fi
+
+    vm="$1"
+    shift
+
+    case "$vm" in
+        server) port=4022;;
+        exporter) port=4122;;
+        client) port=4222;;
+        *) usage_error "unrecognized vm"
+    esac
+
+    "$run" ssh \
+        -p "$port" \
+        -oConnectTimeout=1 \
+        -oUserKnownHostsFile="$vmctldir/known_hosts" \
+        admin@localhost "$@"
+}
+
+usb() {
+    if [ "$#" -lt 1 ]; then
+        usage_error "the following argument is required: action"
+    fi
+    if [ "$#" -gt 1 ];then
+        usage_error "unrecognized argument: '$2'"
+    fi
+    action="$1"
+
+    case "$action" in
+        attach)
+            monitor_command \
+                "drive_add 0 if=none,id=drive0,format=raw,file=$disk" \
+                "device_add usb-storage,drive=drive0,id=usb0,port=1"
+            ;;
+        detach)
+            monitor_command "device_del usb0"
+            ;;
+        *)
+            usage_error "unrecognized action"
+    esac
+}
+
+monitor_command() {
+    IFS="
+"
+    commands="$*"
+    nc -N localhost 3001 << EOF
+$commands
+EOF
+}
+
+usage_error() {
+    usage
+    IFS=" "
+    echo "error: $*"
+    return 1
+} >&2
+
+main "$@"
