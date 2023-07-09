@@ -1,9 +1,9 @@
-name: Static Checks
+name: CI
 
 on: [push]
 
 jobs:
-  check:
+  static_checks:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -25,3 +25,24 @@ jobs:
       run: black --check --quiet not_my_board
     - name: Check import statement order with isort
       run: isort --check not_my_board
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.11
+    - name: Create test VM image
+      run: sudo ./scripts/vmctl makeimg
+    - name: Install dependencies
+      run: |
+        sudo apt-get install qemu-system
+        pip install hatch
+        hatch env create
+        # Make venv persistent across steps
+        . "$(hatch env find)/bin/activate"
+        echo "PATH=$PATH" >> "$GITHUB_ENV"
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+    - name: Run tests
+      run: pytest -s

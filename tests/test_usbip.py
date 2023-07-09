@@ -36,7 +36,7 @@ class _VM:
     async def ssh(self, cmd, *args, **kwargs):
         return await sh(f"./scripts/vmctl ssh {self._name} " + cmd, *args, **kwargs)
 
-    async def ssh_poll(self, cmd, timeout=7):
+    async def ssh_poll(self, cmd, timeout=None):
         return await sh_poll(f"./scripts/vmctl ssh {self._name} " + cmd, timeout)
 
 
@@ -154,13 +154,22 @@ async def sh_task(cmd, prefix=None):
             await logging_task
 
 
-async def sh_poll(cmd, timeout=7):
+async def sh_poll(cmd, timeout=None):
+    if pathlib.Path("/dev/kvm").exists():
+        if timeout is None:
+            timeout = 7
+        interval = 0.1
+    else:
+        if timeout is None:
+            timeout = 60
+        interval = 1
+
     async def poll_loop():
         while True:
             result = await sh(cmd, check=False)
             if result.returncode == 0:
                 break
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(interval)
 
     await asyncio.wait_for(poll_loop(), timeout)
 

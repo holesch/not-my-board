@@ -235,7 +235,7 @@ qemu_exec() {
     else
         # use "QEMU Virtual CPU"
         set -- "$@" -cpu qemu64
-        # multi-core
+        # multi-core, qemu doesn't support hyper-threading without KVM
         set -- "$@" -smp cpus=4,sockets=1,cores=4,threads=1
     fi
 
@@ -348,7 +348,12 @@ wait_for_sshd() {
             break
         fi
         i=$((i + 1))
-        sleep 0.1
+        if [ -e /dev/kvm ]; then
+            sleep 0.1
+        else
+            # without kvm, booting the VM takes quite a bit longer
+            sleep 5
+        fi
     done
 }
 
