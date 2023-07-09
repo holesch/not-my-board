@@ -7,7 +7,7 @@ name = "not-my-board"
 description = ''
 readme = "README.md"
 requires-python = ">=3.7"
-license = "MIT"
+license = {file = "LICENSE.txt"}
 keywords = []
 authors = [
   { name = "Simon Holesch", email = "simon@holesch.de" },
@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
     "asgineer",
     "h11",
-    "pydantic",
+    "pydantic ~= 1.10",
     "tomli; python_version < '3.11'",
     "uvicorn",
     "websockets",
@@ -51,7 +51,9 @@ dependencies = [
   "isort",
   "mypy",
   "pylint",
+  "pylint-pytest",
   "pytest",
+  "pytest-asyncio",
   "pytest-cov",
 ]
 [tool.hatch.envs.default.scripts]
@@ -60,6 +62,11 @@ no-cov = "cov --no-cov"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["37", "38", "39", "310", "311"]
+
+[tool.pytest.ini_options]
+addopts = ["--quiet"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 branch = true
@@ -74,6 +81,9 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.pylint.MASTER]
+load-plugins = "pylint_pytest"
 
 [tool.pylint."MESSAGES CONTROL"]
 disable = [
@@ -94,6 +104,7 @@ disable = [
 variable-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
 argument-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
 attr-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
+function-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
 # pylint doesn't support lazy_import()
 generated-members = [
     "websockets",
