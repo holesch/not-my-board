@@ -143,10 +143,10 @@ $ sudo udevadm trigger /sys/bus/usb
 
 To export:
 ```console
-$ sudo python3 not_my_board/_usbip.py export 1-5.1.1.1.4
+$ sudo python3 -m not_my_board._usbip export 1-5.1.1.1.4
 ```
 
 To import:
 ```console
-$ sudo python3 not_my_board/_usbip.py import <IP> 1-5.1.1.1.4 0
+$ sudo python3 -m not_my_board._usbip import <IP> 1-5.1.1.1.4 0
 ```

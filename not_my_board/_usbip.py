@@ -511,21 +511,10 @@ async def _main():
             tmp_path.replace(pipe_path)
 
             async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
-                tasks = [
-                    asyncio.create_task(coro)
-                    for coro in [
-                        server.serve_forever(),
-                        _watch_refresh_pipe(pipe, device),
-                    ]
-                ]
-
-                try:
-                    logger.info("listening")
-                    await asyncio.gather(*tasks)
-                finally:
-                    for task in tasks:
-                        if not task.done():
-                            task.cancel()
+                logger.info("listening")
+                await util.run_concurrently(
+                    server.serve_forever(), _watch_refresh_pipe(pipe, device)
+                )
 
 
 if __name__ == "__main__":
