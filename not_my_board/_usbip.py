@@ -2,15 +2,55 @@
 
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import os
 import pathlib
 import socket
 import struct
+import sys
 
 import not_my_board._util as util
 
+if sys.version_info < (3, 9):
+    from typing_extensions import Annotated
+else:
+    from typing import Annotated
+
+
 logger = logging.getLogger(__name__)
+
+
+class UsbIpServer:
+    def __init__(self, devices):
+        self._devices = {d.busid: d for d in devices}
+
+    async def handle_client(self, reader, writer):
+        sock = writer.transport.get_extra_info("socket")
+        _enable_keep_alive(sock)
+
+        request = await ImportRequest.from_reader(reader)
+        if request.busid not in self._devices:
+            raise ProtocolError(f"Unexpected Bus ID: {request.busid}")
+
+        device = self._devices[request.busid]
+
+        # allow client to trigger a refresh
+        device.refresh()
+
+        async with device:
+            writer.transport.pause_reading()
+            fd = sock.fileno()
+            device.export(fd)
+
+            reply = ImportReply.from_device(device)
+            logger.debug("Sending: %s", reply)
+            writer.write(bytes(reply))
+            await writer.drain()
+
+            writer.close()
+            await writer.wait_closed()
+            await device.available()
 
 
 class _SysfsFileInt:
@@ -44,9 +84,6 @@ class UsbIpDevice:
         self._lock = asyncio.Lock()
         self._refresh_event = asyncio.Event()
         self._is_exported = False
-
-    async def handle_client(self, reader, writer):
-        await _UsbIpConnection(self, reader, writer).handle_client()
 
     def refresh(self):
         self._refresh_event.set()
@@ -96,7 +133,7 @@ class UsbIpDevice:
 
     @property
     def busid(self):
-        return self._sysfs_path.name.encode("utf-8")
+        return self._busid.encode("utf-8")
 
     @property
     def path(self):
@@ -127,70 +164,6 @@ class UsbIpDevice:
     bNumConfigurations = _SysfsFileHex()
     bNumInterfaces = _SysfsFileHex(default=0)
 
-    def interfaces(self):
-        for if_dir in self._sysfs_path.glob(self._sysfs_path.name + ":*"):
-            yield _UsbIpDeviceInterface(if_dir)
-
-
-class _UsbIpDeviceInterface:
-    def __init__(self, sysfs_path):
-        self._sysfs_path = sysfs_path
-
-    bInterfaceClass = _SysfsFileHex()
-    bInterfaceSubClass = _SysfsFileHex()
-    bInterfaceProtocol = _SysfsFileHex()
-
-
-class _UsbIpConnection:
-    def __init__(self, device, reader, writer):
-        self._device = device
-        self._reader = reader
-        self._writer = writer
-        self._sock = writer.transport.get_extra_info("socket")
-        _enable_keep_alive(self._sock)
-
-        # allow client to trigger a refresh
-        self._device.refresh()
-
-    async def handle_client(self):
-        while True:
-            request = await receive_message(self._reader)
-            logger.debug("Received: %s", request)
-
-            if isinstance(request, DevlistRequest):
-                await self._handle_devlist_request(request)
-            elif isinstance(request, ImportRequest):
-                await self._handle_import_request(request)
-                break
-            else:
-                raise ProtocolError(f"Unexpected message: {request}")
-
-    async def _handle_devlist_request(self, _):
-        reply = await DevlistReply.from_device(self._device)
-        logger.debug("Sending: %s", reply)
-        await self._send(reply)
-
-    async def _handle_import_request(self, request):
-        if request.busid != self._device.busid:
-            raise ProtocolError(f"Unexpected Bus ID: {request.busid}")
-
-        async with self._device:
-            self._writer.transport.pause_reading()
-            fd = self._sock.fileno()
-            self._device.export(fd)
-
-            reply = await ImportReply.from_device(self._device)
-            logger.debug("Sending: %s", reply)
-            await self._send(reply)
-
-            self._writer.close()
-            await self._writer.wait_closed()
-            await self._device.available()
-
-    async def _send(self, data):
-        self._writer.write(bytes(data))
-        await self._writer.drain()
-
 
 async def attach(reader, writer, busid, port):
     sock = writer.transport.get_extra_info("socket")
@@ -198,7 +171,7 @@ async def attach(reader, writer, busid, port):
     # both sides start sending at the same time.
     _enable_keep_alive(sock, extra_idle_sec=2)
 
-    request = ImportRequest(busid=busid.encode())
+    request = ImportRequest(busid.encode())
     logger.debug("Sending: %s", request)
     writer.write(bytes(request))
     await writer.drain()
@@ -231,217 +204,122 @@ def _enable_keep_alive(sock, extra_idle_sec=0):
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
 
-class _NamedStruct(struct.Struct):
-    def __init__(self, *type_name_pairs):
-        format_str = "!"
-        self._names = []
-
-        for type_, name in type_name_pairs:
-            format_str += type_
-            self._names.append(name)
-
-        super().__init__(format_str)
-
-    def unpack(self, buffer):
-        values = super().unpack(buffer)
-        return dict(zip(self._names, values))
-
-    def iter_unpack(self, buffer):
-        for values in super().iter_unpack(buffer):
-            yield dict(zip(self._names, values))
-
-    def pack(self, **kwargs):
-        values = [kwargs[name] for name in self._names]
-        return super().pack(*values)
-
-    @property
-    def field_names(self):
-        return self._names
+class StructType:
+    def __init__(self, format_str):
+        self.format_str = format_str
 
 
-# pylint: disable=protected-access
-async def receive_message(reader):
-    code_class_map = {cls.code: cls for cls in _Message.__subclasses__()}
-    code = await _Message._receive_header(reader)
-    cls = code_class_map.get(code)
-    if cls is None:
-        raise ProtocolError(f"Unexpected code: {code}")
-
-    return await cls._from_body(reader)
+class StructStr(StructType):
+    pass
 
 
-class _Message:
-    _protocol_version = 0x0111
-    _header_format = _NamedStruct(
-        ("H", "version"),
-        ("H", "code"),
-        ("I", "status"),
-    )
-    _strip_fields = [
-        "path",
-        "busid",
-    ]
+UInt8 = Annotated[int, StructType("B")]
+UInt16 = Annotated[int, StructType("H")]
+UInt32 = Annotated[int, StructType("I")]
 
-    def __init__(self, **kwargs):
-        self._values = kwargs
+
+class Char(bytes):
+    def __class_getitem__(cls, key):
+        return Annotated[bytes, StructStr(f"{key}s")]
+
+
+# pylint: disable=W0212,E1101
+# - accessing protected member of cls, e.g. cls._struct
+# - 'serializable' has no '_struct' member
+def serializable(cls):
+    cls = dataclasses.dataclass(cls)
+
+    format_str = "!"
+    to_strip = set()
+
+    for field in dataclasses.fields(cls):
+        for metadata in field.type.__metadata__:
+            if isinstance(metadata, StructType):
+                format_str += metadata.format_str
+                if isinstance(metadata, StructStr):
+                    to_strip.add(field.name)
+                break
+        else:
+            raise ProtocolError(f"Field {field!r} not annotated with StructType")
+
+    cls._struct = struct.Struct(format_str)
+    cls._to_strip = to_strip
+
+    def __bytes__(self):
+        return self._struct.pack(
+            *(getattr(self, f.name) for f in dataclasses.fields(self))
+        )
 
     @classmethod
     async def from_reader(cls, reader):
-        code = await cls._receive_header(reader)
+        data = await reader.readexactly(cls._struct.size)
+        values = cls._struct.unpack(data)
+        init_values = []
+        for field, value in zip(dataclasses.fields(cls), values):
+            if field.init:
+                if field.name in cls._to_strip:
+                    value = value.rstrip(b"\0")
+                init_values.append(value)
+            else:
+                if value != field.default:
+                    raise ProtocolError(
+                        f"Expected {field.name}={field.default}, got={value}"
+                    )
 
-        if code != cls.code:
-            raise ProtocolError(f"Unexpected code: {code}")
+        # pylint: disable=E1120
+        # No value for argument 'cls': false positive
+        return cls(*init_values)
 
-        return await cls._from_body(reader)
+    cls.__bytes__ = __bytes__
+    cls.from_reader = from_reader
+
+    return cls
+
+
+def no_init(default):
+    return dataclasses.field(default=default, init=False)
+
+
+@serializable
+class Header:
+    version: UInt16 = no_init(0x0111)
+    code: UInt16
+    status: UInt32 = no_init(0)
+
+
+@serializable
+class ImportRequest(Header):
+    code: UInt16 = no_init(0x8003)
+    busid: Char[32]
+
+
+@serializable
+class ImportReply(Header):
+    code: UInt16 = no_init(0x0003)
+    path: Char[256]
+    busid: Char[32]
+    busnum: UInt32
+    devnum: UInt32
+    speed: UInt32
+    idVendor: UInt16
+    idProduct: UInt16
+    bcdDevice: UInt16
+    bDeviceClass: UInt8
+    bDeviceSubClass: UInt8
+    bDeviceProtocol: UInt8
+    bConfigurationValue: UInt8
+    bNumConfigurations: UInt8
+    bNumInterfaces: UInt8
 
     @classmethod
-    async def _receive_header(cls, reader):
-        data = await reader.readexactly(cls._header_format.size)
-        header = cls._header_format.unpack(data)
-        if header["version"] != cls._protocol_version:
-            raise ProtocolError(
-                f"Unexpected protocol version: 0x{header['version']:04x}"
+    def from_device(cls, device):
+        return cls(
+            *(
+                getattr(device, field.name)
+                for field in dataclasses.fields(cls)
+                if field.init
             )
-        if header["status"] != 0:
-            raise ProtocolError(f"Unexpected status: {header['status']}")
-
-        return header["code"]
-
-    @classmethod
-    async def _receive_body(cls, reader):
-        data = await reader.readexactly(cls._message_format.size)
-        values = cls._message_format.unpack(data)
-        for name in cls._strip_fields:
-            if name in values:
-                values[name] = values[name].rstrip(b"\0")
-
-        return values
-
-    @classmethod
-    async def _from_body(cls, reader):
-        values = await cls._receive_body(reader)
-        return cls(**values)
-
-    def __bytes__(self):
-        header = self._header_format.pack(
-            version=self._protocol_version, code=self.code, status=0
         )
-
-        return header + self._message_format.pack(**self._values)
-
-    def __getattr__(self, attr):
-        if attr in self._values:
-            return self._values[attr]
-        cls_name = type(self).__name__
-        raise AttributeError(f"'{cls_name}' object has no attribute '{attr}'")
-
-    def __repr__(self):
-        args_str = ", ".join([f"{key}={value}" for key, value in self._values.items()])
-        cls_name = type(self).__name__
-        return f"<{cls_name}({args_str})>"
-
-
-class DevlistRequest(_Message):
-    code = 0x8005
-    _message_format = _NamedStruct()
-
-
-class DevlistReply(_Message):
-    code = 0x0005
-    _message_format = _NamedStruct(
-        ("I", "n_devices"),
-        ("256s", "path"),
-        ("32s", "busid"),
-        ("I", "busnum"),
-        ("I", "devnum"),
-        ("I", "speed"),
-        ("H", "idVendor"),
-        ("H", "idProduct"),
-        ("H", "bcdDevice"),
-        ("B", "bDeviceClass"),
-        ("B", "bDeviceSubClass"),
-        ("B", "bDeviceProtocol"),
-        ("B", "bConfigurationValue"),
-        ("B", "bNumConfigurations"),
-        ("B", "bNumInterfaces"),
-    )
-    _interface_format = _NamedStruct(
-        ("B", "bInterfaceClass"),
-        ("B", "bInterfaceSubClass"),
-        ("Bx", "bInterfaceProtocol"),
-    )
-
-    @classmethod
-    async def _receive_body(cls, reader):
-        values = await super()._receive_body(reader)
-
-        interfaces_size = cls._interface_format.size * values["bNumInterfaces"]
-        data = await reader.readexactly(interfaces_size)
-        values["interfaces"] = list(cls._interface_format.iter_unpack(data))
-
-        return values
-
-    @classmethod
-    async def from_device(cls, device):
-        values = {
-            name: getattr(device, name) for name in cls._message_format.field_names[1:]
-        }
-        values["n_devices"] = 1
-
-        values["interfaces"] = [
-            {
-                name: getattr(interface, name)
-                for name in cls._interface_format.field_names
-            }
-            for interface in device.interfaces()
-        ]
-
-        return cls(**values)
-
-    def __bytes__(self):
-        interfaces = b"".join(
-            [
-                self._interface_format.pack(**values)
-                for values in self._values["interfaces"]
-            ]
-        )
-
-        return super().__bytes__() + interfaces
-
-
-class ImportRequest(_Message):
-    code = 0x8003
-    _message_format = _NamedStruct(
-        ("32s", "busid"),
-    )
-
-
-class ImportReply(_Message):
-    code = 0x0003
-    _message_format = _NamedStruct(
-        ("256s", "path"),
-        ("32s", "busid"),
-        ("I", "busnum"),
-        ("I", "devnum"),
-        ("I", "speed"),
-        ("H", "idVendor"),
-        ("H", "idProduct"),
-        ("H", "bcdDevice"),
-        ("B", "bDeviceClass"),
-        ("B", "bDeviceSubClass"),
-        ("B", "bDeviceProtocol"),
-        ("B", "bConfigurationValue"),
-        ("B", "bNumConfigurations"),
-        ("B", "bNumInterfaces"),
-    )
-
-    @classmethod
-    async def from_device(cls, device):
-        values = {
-            name: getattr(device, name) for name in cls._message_format.field_names
-        }
-
-        return cls(**values)
 
 
 class ProtocolError(Exception):
@@ -500,8 +378,9 @@ async def _main():
             await attach(reader, writer, args.busid, args.vhci_port)
     else:
         device = UsbIpDevice(args.busid)
+        usbip_server = UsbIpServer([device])
         server = util.Server(
-            device.handle_client, port=args.port, family=socket.AF_INET
+            usbip_server.handle_client, port=args.port, family=socket.AF_INET
         )
         async with server:
             pipe_path = pathlib.Path("/run/usbip-refresh-" + args.busid)

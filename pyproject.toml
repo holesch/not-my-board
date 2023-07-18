@@ -26,6 +26,7 @@ dependencies = [
     "h11",
     "pydantic ~= 1.10",
     "tomli; python_version < '3.11'",
+    "typing_extensions; python_version < '3.9'",
     "uvicorn",
     "websockets",
 ]
@@ -109,6 +110,8 @@ function-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
 generated-members = [
     "websockets",
     "pydantic",
+    "ImportRequest",
+    "ImportReply",
 ]
 
 [tool.isort]
