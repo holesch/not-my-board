@@ -5,6 +5,7 @@ import contextlib
 import logging
 import os
 import pathlib
+import traceback
 import urllib.parse
 
 import websockets
@@ -12,6 +13,7 @@ import websockets
 import not_my_board._http as http
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
+import not_my_board._usbip as usbip
 import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
@@ -246,16 +248,57 @@ class ReservedPlace:
         return self._stack is not None
 
 
-# TODO implement USB tunnel
 class UsbTunnel:
+    _target = "usb.not-my-board.localhost", 3240
+    _ready_timeout = 5
+
     def __init__(self, name, proxy, usbid, vhci_port):
-        pass
+        self._name = name
+        self._proxy = proxy
+        self._usbid = usbid
+        self._vhci_port = vhci_port
 
     async def __aenter__(self):
+        async with contextlib.AsyncExitStack() as stack:
+            ready_event = asyncio.Event()
+            task = asyncio.create_task(self._tunnel_task(ready_event))
+            stack.push_async_callback(util.cancel_tasks, [task])
+            logger.debug("%s: Attaching USB device", self._name)
+
+            try:
+                await asyncio.wait_for(ready_event.wait(), self._ready_timeout)
+            except TimeoutError:
+                logger.warning("%s: Attaching USB device timed out", self._name)
+
+            self._stack = stack.pop_all()
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        pass
+        await self._stack.__aexit__(exc_type, exc, tb)
+
+    async def _tunnel_task(self, ready_event):
+        retry_timeout = 1
+        try:
+            while True:
+                try:
+                    await self._attach()
+                    ready_event.set()
+                    retry_timeout = 1
+                except Exception:
+                    traceback.print_exc()
+                    await asyncio.sleep(retry_timeout)
+                    retry_timeout = min(2 * retry_timeout, 30)
+        finally:
+            usbip.detach(self._vhci_port)
+            logger.debug("%s: USB device detached", self._name)
+
+    async def _attach(self):
+        tunnel = http.open_tunnel(*self._proxy, *self._target)
+        async with tunnel as (reader, writer, trailing_data):
+            if trailing_data:
+                raise ProtocolError("USB/IP implementation cannot handle trailing data")
+            await usbip.attach(reader, writer, self._usbid, self._vhci_port)
+        logger.debug("%s: USB device attached", self._name)
 
 
 class TcpTunnel:
@@ -296,3 +339,7 @@ class TcpTunnel:
             client_w.write(trailing_data)
             await client_w.drain()
             await util.relay_streams(client_r, client_w, remote_r, remote_w)
+
+
+class ProtocolError(Exception):
+    pass

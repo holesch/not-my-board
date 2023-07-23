@@ -30,6 +30,7 @@ class UsbIpServer:
         _enable_keep_alive(sock)
 
         request = await ImportRequest.from_reader(reader)
+        logger.debug("Received: %s", request)
         if request.busid not in self._devices:
             raise ProtocolError(f"Unexpected Bus ID: {request.busid}")
 
@@ -190,6 +191,15 @@ async def attach(reader, writer, busid, port):
         attach_path.write_text(f"{port} {fd} {devid} {reply.speed}\n")
     finally:
         os.close(fd)
+
+
+def detach(port):
+    detach_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/detach")
+    try:
+        detach_path.write_text(f"{port}")
+    except OSError:
+        # not attached anymore
+        pass
 
 
 def _enable_keep_alive(sock, extra_idle_sec=0):

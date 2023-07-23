@@ -13,6 +13,7 @@ import websockets
 
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
+import not_my_board._usbip as usbip
 import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,13 @@ class Exporter:
         }
         self._usb_target = {b"usb.not-my-board.localhost:3240"}
         self._allowed_proxy_targets = tcp_targets | self._usb_target
+
+        usbip_devices = [
+            usbip.UsbIpDevice(usb.usbid)
+            for part in self._place.parts
+            for _, usb in part.usb.items()
+        ]
+        self._usbip_server = usbip.UsbIpServer(usbip_devices)
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
@@ -117,8 +125,10 @@ class Exporter:
             await con.deny_request()
 
     async def _tunnel(self, client_r, client_w, target, trailing_data):
-        if target == "usb.not-my-board.localhost:3240":
-            raise ProtocolError("USB/IP not supported, yet")
+        if target == b"usb.not-my-board.localhost:3240":
+            if trailing_data:
+                raise ProtocolError("USB/IP implementation cannot handle trailing data")
+            await self._usbip_server.handle_client(client_r, client_w)
         else:
             host, port = target.split(b":", 1)
             port = int(port)
