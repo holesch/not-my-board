@@ -19,6 +19,18 @@ async def run_concurrently(*coros):
         await cancel_tasks(tasks)
 
 
+@contextlib.asynccontextmanager
+async def background_task(coro):
+    """Runs the coro until leaving the context manager.
+
+    The coro task is canceled when leaving the context."""
+    task = asyncio.create_task(coro)
+    try:
+        yield task
+    finally:
+        await cancel_tasks([task])
+
+
 async def cancel_tasks(tasks):
     """Cancel tasks and wait until all are cancelled"""
 

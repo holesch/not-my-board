@@ -261,8 +261,9 @@ class UsbTunnel:
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
             ready_event = asyncio.Event()
-            task = asyncio.create_task(self._tunnel_task(ready_event))
-            stack.push_async_callback(util.cancel_tasks, [task])
+            await stack.enter_async_context(
+                util.background_task(self._tunnel_task(ready_event))
+            )
             logger.debug("%s: Attaching USB device", self._name)
 
             try:
@@ -311,8 +312,9 @@ class TcpTunnel:
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
             ready_event = asyncio.Event()
-            task = asyncio.create_task(self._tunnel_task(ready_event))
-            stack.push_async_callback(util.cancel_tasks, [task])
+            await stack.enter_async_context(
+                util.background_task(self._tunnel_task(ready_event))
+            )
             await ready_event.wait()
             self._stack = stack.pop_all()
         return self

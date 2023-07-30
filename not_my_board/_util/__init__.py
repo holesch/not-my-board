@@ -1,6 +1,7 @@
 from ._asyncio import (
     Server,
     UnixServer,
+    background_task,
     cancel_tasks,
     connect,
     relay_streams,
