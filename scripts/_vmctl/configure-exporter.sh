@@ -14,17 +14,13 @@ pip install --no-index --find-links ./src/scripts/_vmctl/img/pip-cache --no-buil
 echo 0 > /sys/bus/usb/drivers_autoprobe
 modprobe usbip-host
 
-mkdir /usr/local/lib/mdev
-cat > /usr/local/lib/mdev/usbip << "EOF"
-busid="${DEVPATH##*/}"
-printf "add $busid" > /sys/bus/usb/drivers/usbip-host/match_busid
-printf "$busid" > /sys/bus/usb/drivers/usbip-host/bind
-printf '.' 1<> "/run/usbip-refresh-$busid"
-EOF
-chmod +x /usr/local/lib/mdev/usbip
-
 cat >> /etc/mdev.conf << "EOF"
-bus/usb/.* root:root 0600 @/usr/local/lib/mdev/usbip
+SUBSYSTEM=usb;DEVTYPE=usb_device;DEVPATH=.;.* root:root 0600 @not-my-board uevent "$DEVPATH"
 EOF
+
+echo > /dev/mdev.seq
+echo > /dev/mdev.log
+# mark busid 2-1, so it will be bound to usbip-host driver
+echo > /run/usbip-refresh-2-1
 
 /etc/init.d/mdev restart

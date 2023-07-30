@@ -24,9 +24,12 @@ setup-timezone -z UTC
 
 setup-user -au admin
 echo "permit nopass :wheel" >> /etc/doas.d/doas.conf
+addgroup -S vhci
+addgroup admin vhci
 
 # configure sshd
-sed -e 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' \
+sed -e 's/#\(PermitEmptyPasswords\) no/\1 yes/' \
+    -e 's/#\(UsePAM\) no/\1 yes/' \
     -i /etc/ssh/sshd_config
 cat >> /etc/conf.d/sshd << EOF
 sshd_disable_keygen="yes"
@@ -44,6 +47,8 @@ virtio-net
 virtio-pci
 xhci-pci
 EOF
+
+mv /etc/profile.d/color_prompt.sh.disabled /etc/profile.d/70color_prompt.sh
 
 enable_services() {
     runlevel="$1"

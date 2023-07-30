@@ -1,0 +1,3 @@
+[parts.flash-drive]
+compatible = [ "qemu-usb" ]
+usb.usb0 = { vhci_port = 8 }

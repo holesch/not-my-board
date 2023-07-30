@@ -15,7 +15,7 @@ valid_tokens = ("dummy-token-1", "dummy-token-2")
 
 
 def serve():
-    asgineer.run(asgi_app, "uvicorn", "localhost:2092")
+    asgineer.run(asgi_app, "uvicorn", ":2092")
 
 
 @asgineer.to_asgi

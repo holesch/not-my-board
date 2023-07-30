@@ -64,7 +64,7 @@ class ClientVM(_VM):
 VMs = collections.namedtuple("VMs", ["server", "exporter", "client"])
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 async def vms():
     async with ServerVM() as server:
         while True:
@@ -84,11 +84,11 @@ async def vms():
                     exporter.configure(),
                     client.configure(),
                 )
+                await exporter.usb_attach()
                 yield VMs(server, exporter, client)
 
 
-async def test_usb_forwarding(vms):
-    await vms.exporter.usb_attach()
+async def test_raw_usb_forwarding(vms):
     async with vms.exporter.ssh_task(
         "doas python3 -m not_my_board._usbip export 2-1", "usbip export"
     ):
@@ -96,7 +96,7 @@ async def test_usb_forwarding(vms):
         await vms.exporter.ssh_poll("nc -z 127.0.0.1 3240")
 
         async with vms.client.ssh_task(
-            f"doas python3 -m not_my_board._usbip import {vms.exporter.ip} 2-1 0",
+            f"python3 -m not_my_board._usbip import {vms.exporter.ip} 2-1 0",
             "usbip import",
         ):
             # wait for USB device to appear
@@ -108,6 +108,41 @@ async def test_usb_forwarding(vms):
                 assert result.stdout == "Hello, World!"
             finally:
                 await vms.client.ssh("doas umount /media/usb")
+
+
+async def test_usb_forwarding(vms):
+    async with vms.server.ssh_task("not-my-board serve", "serve"):
+        # wait for listening socket
+        await vms.server.ssh_poll("nc -z 127.0.0.1 2092")
+
+        async with vms.exporter.ssh_task(
+            f"doas not-my-board export http://{vms.server.ip}:2092 ./src/tests/qemu-usb-place.toml",
+            "export",
+        ):
+            await vms.client.ssh("""'rm -f "$XDG_RUNTIME_DIR/not-my-board.sock"'""")
+            async with vms.client.ssh_task(
+                f"not-my-board agent http://{vms.server.ip}:2092", "agent"
+            ):
+                # wait until exported place is registered
+                await vms.client.ssh_poll(
+                    "wget -q -O - http://192.168.200.1:2092/api/v1/places | grep -q qemu-usb"
+                )
+                # wait until agent is ready
+                await vms.client.ssh_poll(
+                    """'test -e "$XDG_RUNTIME_DIR/not-my-board.sock"'"""
+                )
+
+                await vms.client.ssh("not-my-board attach ./src/tests/qemu-usb.toml")
+                await vms.client.ssh("test -e /sys/bus/usb/devices/2-1")
+                try:
+                    await vms.exporter.usb_detach()
+                    await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
+                finally:
+                    await vms.exporter.usb_attach()
+
+                await vms.client.ssh_poll("test -e /sys/bus/usb/devices/2-1")
+                await vms.client.ssh("not-my-board detach qemu-usb")
+                await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
 
 
 ShResult = collections.namedtuple("ShResult", ["stdout", "stderr", "returncode"])
@@ -123,7 +158,7 @@ async def sh(cmd, check=True, strip=True, prefix=None):
     )
     await proc.wait()
     if check and proc.returncode:
-        raise RuntimeError("{cmd!r} exited with {proc.returncode}")
+        raise RuntimeError(f"{cmd!r} exited with {proc.returncode}")
 
     stdout = stdout.decode("utf-8")
     if strip:

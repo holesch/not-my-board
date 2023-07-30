@@ -121,11 +121,15 @@ EOF
         doas \
         "linux-$kernel_variant" \
         linux-firmware-none \
+        linux-pam \
         openssh \
+        openssh-server-pam \
+        pam-rundir \
         py3-hatchling \
         py3-pip \
         python3 \
         tzdata \
+        util-linux-login \
         ;
 
     chroot "$mnt" /usr/bin/env - \

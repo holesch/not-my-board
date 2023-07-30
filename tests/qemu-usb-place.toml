@@ -1,0 +1,6 @@
+# Listen port for the exporter
+port = 2192
+
+[[parts]]
+compatible = [ "qemu-usb" ]
+usb.usb0 = { usbid = "2-1" }
