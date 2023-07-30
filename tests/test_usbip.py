@@ -136,7 +136,7 @@ async def test_usb_forwarding(vms):
                 await vms.client.ssh("test -e /sys/bus/usb/devices/2-1")
                 try:
                     await vms.exporter.usb_detach()
-                    await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
+                    await vms.client.ssh_poll("! test -e /sys/bus/usb/devices/2-1")
                 finally:
                     await vms.exporter.usb_attach()
 
