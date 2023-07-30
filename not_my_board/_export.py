@@ -39,15 +39,18 @@ class Exporter:
         self._usb_target = {b"usb.not-my-board.localhost:3240"}
         self._allowed_proxy_targets = tcp_targets | self._usb_target
 
-        usbip_devices = [
+        self._usbip_devices = [
             usbip.UsbIpDevice(usb.usbid)
             for part in self._place.parts
             for _, usb in part.usb.items()
         ]
-        self._usbip_server = usbip.UsbIpServer(usbip_devices)
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
+            self._usbip_server = await stack.enter_async_context(
+                usbip.UsbIpServer(self._usbip_devices)
+            )
+
             url = f"{self._server_url}/ws"
             auth = "Bearer dummy-token-1"
             self._ws = await stack.enter_async_context(util.ws_connect(url, auth))

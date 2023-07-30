@@ -25,6 +25,20 @@ class UsbIpServer:
     def __init__(self, devices):
         self._devices = {d.busid: d for d in devices}
 
+    async def __aenter__(self):
+        async with contextlib.AsyncExitStack() as stack:
+            for _, device in self._devices.items():
+                await stack.enter_async_context(
+                    util.background_task(_refresh_task(device))
+                )
+
+            self._stack = stack.pop_all()
+            await self._stack.__aenter__()
+            return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._stack.__aexit__(exc_type, exc, tb)
+
     async def handle_client(self, reader, writer):
         sock = writer.transport.get_extra_info("socket")
         _enable_keep_alive(sock)
@@ -123,6 +137,7 @@ class UsbIpDevice:
         try:
             status_available = 1
             if self.usbip_status == status_available:
+                logger.debug("Device %s is available", self.busid)
                 return True
         except FileNotFoundError:
             # device might have disappeared
@@ -130,6 +145,7 @@ class UsbIpDevice:
         except Exception as e:
             logger.warning("Error while checking device status: %s", e)
 
+        logger.debug("Device %s is not available, yet", self.busid)
         return False
 
     @property
@@ -336,6 +352,19 @@ class ProtocolError(Exception):
     pass
 
 
+async def _refresh_task(device):
+    pipe_path = pathlib.Path("/run/usbip-refresh-" + device.busid.decode())
+
+    tmp_path = pipe_path.with_name(pipe_path.name + ".new")
+    os.mkfifo(tmp_path)
+    tmp_path.replace(pipe_path)
+
+    async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
+        while True:
+            await pipe.read(4096)
+            device.refresh()
+
+
 @contextlib.asynccontextmanager
 async def _open_read_pipe(*args, **kwargs):
     with open(*args, **kwargs) as pipe:
@@ -344,12 +373,6 @@ async def _open_read_pipe(*args, **kwargs):
         protocol = asyncio.StreamReaderProtocol(reader, loop=loop)
         await loop.connect_read_pipe(lambda: protocol, pipe)
         yield reader
-
-
-async def _watch_refresh_pipe(pipe, device):
-    while True:
-        await pipe.read(4096)
-        device.refresh()
 
 
 # pylint: disable=import-outside-toplevel
@@ -388,22 +411,13 @@ async def _main():
             await attach(reader, writer, args.busid, args.vhci_port)
     else:
         device = UsbIpDevice(args.busid)
-        usbip_server = UsbIpServer([device])
-        server = util.Server(
-            usbip_server.handle_client, port=args.port, family=socket.AF_INET
-        )
-        async with server:
-            pipe_path = pathlib.Path("/run/usbip-refresh-" + args.busid)
-
-            tmp_path = pipe_path.with_name(pipe_path.name + ".new")
-            os.mkfifo(tmp_path)
-            tmp_path.replace(pipe_path)
-
-            async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
+        async with UsbIpServer([device]) as usbip_server:
+            server = util.Server(
+                usbip_server.handle_client, port=args.port, family=socket.AF_INET
+            )
+            async with server:
                 logger.info("listening")
-                await util.run_concurrently(
-                    server.serve_forever(), _watch_refresh_pipe(pipe, device)
-                )
+                await server.serve_forever()
 
 
 if __name__ == "__main__":
