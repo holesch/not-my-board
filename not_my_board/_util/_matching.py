@@ -86,7 +86,7 @@ def find_matching(G):
                     M[u], M_reverse[v] = v, u
                     return True
 
-        # No path found for this u. Mark it, to not try agin.
+        # No path found for this u. Mark it, to not try again.
         layer[u] = INFINITY
         return False
 

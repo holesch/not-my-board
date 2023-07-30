@@ -25,6 +25,8 @@ jobs:
       run: black --check --quiet not_my_board
     - name: Check import statement order with isort
       run: isort --check not_my_board
+    - name: Check spelling
+      run: git ls-files -z | xargs -0 -- codespell
   test:
     runs-on: ubuntu-latest
     steps:

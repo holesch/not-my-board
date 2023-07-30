@@ -49,6 +49,7 @@ path = "not_my_board/__about__.py"
 [tool.hatch.envs.default]
 dependencies = [
   "black",
+  "codespell",
   "isort",
   "mypy",
   "pylint",

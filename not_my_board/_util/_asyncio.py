@@ -69,10 +69,10 @@ class Server:
     """Wraps `asyncio.start_server()` and cleans up open connections
 
     When leaving the context, not only are the listening sockets closed,
-    but all currently runnning connection handler callbacks are also
-    cancelled.
+    but all currently running connection handler callbacks are also
+    canceled.
 
-    It also wrapps the connection handler to catch and log every exception
+    It also wraps the connection handler to catch and log every exception
     raised in the handler and also closes the connection, when the handler
     function returns.
     """
