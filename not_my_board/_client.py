@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import os
 import pathlib
+import sys
 
 import not_my_board._jsonrpc as jsonrpc
 
@@ -45,6 +46,43 @@ async def detach(name, keep=False):
 async def list_():
     async with agent_proxy() as proxy:
         return await proxy.list()
+
+
+async def uevent(devpath):
+    # devpath has a leading "/", so joining with the / operator doesn't
+    # work
+    sysfs_path = pathlib.Path("/sys" + devpath)
+    busnum = (sysfs_path / "busnum").read_text().rstrip()
+    devpath = (sysfs_path / "devpath").read_text().rstrip()
+
+    busid = f"{busnum}-{devpath}"
+
+    pipe = pathlib.Path("/run/usbip-refresh-" + busid)
+    if pipe.exists():
+        print(f"Binding to usbip-host: {busid}", file=sys.stderr)
+        match_busid_path = pathlib.Path("/sys/bus/usb/drivers/usbip-host/match_busid")
+        if not match_busid_path.exists():
+            await _exec("modprobe", "usbip-host")
+        match_busid_path.write_text(f"add {busid}")
+        bind_path = pathlib.Path("/sys/bus/usb/drivers/usbip-host/bind")
+        bind_path.write_text(busid)
+        with pipe.open("r+b", buffering=0) as f:
+            f.write(b".")
+    else:
+        print(f"Loading default driver: {busid}", file=sys.stderr)
+        probe_path = pathlib.Path("/sys/bus/usb/drivers_probe")
+        try:
+            probe_path.write_text(busid)
+        except OSError:
+            # fails for USB Hubs
+            pass
+
+
+async def _exec(*args, **kwargs):
+    proc = await asyncio.create_subprocess_exec(*args, **kwargs)
+    await proc.communicate()
+    if proc.returncode:
+        raise RuntimeError(f"{args!r} exited with {proc.returncode}")
 
 
 def _find_spec_file(name):

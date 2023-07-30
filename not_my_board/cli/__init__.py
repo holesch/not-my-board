@@ -71,6 +71,9 @@ def main():
 
     subparser = add_subcommand("list", help="list reserved places")
 
+    subparser = add_subcommand("uevent", help="handle Kernel uevent for USB devices")
+    subparser.add_argument("devpath", help="devpath attribute of uevent")
+
     args = parser.parse_args()
 
     try:
@@ -113,3 +116,7 @@ async def _list_command(_):
     names = await client.list_()
     for name in names:
         print(name)
+
+
+async def _uevent_command(args):
+    await client.uevent(args.devpath)
