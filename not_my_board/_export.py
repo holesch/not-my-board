@@ -51,19 +51,16 @@ class Exporter:
                 usbip.UsbIpServer(self._usbip_devices)
             )
 
-            url = f"{self._server_url}/ws"
-            auth = "Bearer dummy-token-1"
-            self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
-            self._receive_iterator = self._receive_iter()
-
-            server_proxy = jsonrpc.Proxy(self._ws.send, self._receive_iterator)
-            await server_proxy.register_exporter(self._place.dict(), _notification=True)
-
             self._http_server = await stack.enter_async_context(
                 util.Server(
                     self._handle_client, port=self._place.port, family=socket.AF_INET
                 )
             )
+
+            url = f"{self._server_url}/ws-exporter"
+            auth = "Bearer dummy-token-1"
+            self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
+            self._ws_server = jsonrpc.Server(self._ws.send, self._receive_iter(), self)
 
             self._stack = stack.pop_all()
             await self._stack.__aenter__()
@@ -72,12 +69,10 @@ class Exporter:
     async def __aexit__(self, exc_type, exc, tb):
         await self._stack.__aexit__(exc_type, exc, tb)
 
+    # TODO: hide from JSON-RPC interface
     async def serve_forever(self):
-        exporter_api = ExporterApi(self)
-        ws_server = jsonrpc.Server(self._ws.send, self._receive_iterator, exporter_api)
-
         await util.run_concurrently(
-            self._http_server.serve_forever(), ws_server.serve_forever()
+            self._http_server.serve_forever(), self._ws_server.serve_forever()
         )
 
     async def _receive_iter(self):
@@ -86,6 +81,9 @@ class Exporter:
                 yield await self._ws.recv()
         except websockets.ConnectionClosedOK:
             pass
+
+    async def get_place(self):
+        return self._place.dict()
 
     async def set_allowed_ips(self, ips):
         new_ips = set(map(ipaddress.ip_address, ips))
@@ -140,14 +138,6 @@ class Exporter:
                 remote_w.write(trailing_data)
                 await remote_w.drain()
                 await util.relay_streams(client_r, client_w, remote_r, remote_w)
-
-
-class ExporterApi:
-    def __init__(self, exporter):
-        self._exporter = exporter
-
-    async def set_allowed_ips(self, ips):
-        await self._exporter.set_allowed_ips(ips)
 
 
 def format_date_time(dt=None):

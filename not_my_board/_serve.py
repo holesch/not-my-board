@@ -9,6 +9,7 @@ import traceback
 import asgineer
 
 import not_my_board._jsonrpc as jsonrpc
+import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
 valid_tokens = ("dummy-token-1", "dummy-token-2")
@@ -20,14 +21,51 @@ def serve():
 
 @asgineer.to_asgi
 async def asgi_app(request):
-    if request.path == "/ws" and isinstance(request, asgineer.WebsocketRequest):
-        return await websocket_handler(request)
-    elif request.path == "/api/v1/places":
-        return {"places": [p.desc for p in Place.all()]}
+    if isinstance(request, asgineer.WebsocketRequest):
+        if request.path == "/ws-agent":
+            return await _handle_agent(request)
+        elif request.path == "/ws-exporter":
+            return await _handle_exporter(request)
+        await request.close()
+        return
+    elif isinstance(request, asgineer.HttpRequest):
+        if request.path == "/api/v1/places":
+            return {"places": [p.desc for p in Place.all()]}
     return 404, {}, "Page not found"
 
 
-async def websocket_handler(ws):
+async def _handle_agent(ws):
+    await _authorize_ws(ws)
+    client_ip = ws.scope["client"][0]
+    async with Place.reservation_context(client_ip) as ctx:
+        api = AgentAPI(ctx)
+        server = jsonrpc.Server(ws.send, ws.receive_iter(), api)
+        await server.serve_forever()
+
+
+class AgentAPI:
+    def __init__(self, reservation_context):
+        self._reservation_context = reservation_context
+
+    async def reserve(self, candidate_ids):
+        place = await Place.reserve(candidate_ids, self._reservation_context)
+        return place.desc["id"]
+
+    async def return_reservation(self, place_id):
+        await Place.return_by_id(place_id, self._reservation_context)
+
+
+async def _handle_exporter(ws):
+    await _authorize_ws(ws)
+    client_ip = ws.scope["client"][0]
+    exporter = jsonrpc.Proxy(ws.send, ws.receive_iter())
+    async with util.background_task(exporter.io_loop()) as io_loop:
+        place = await exporter.get_place()
+        with Place.register(place, exporter, client_ip):
+            await io_loop
+
+
+async def _authorize_ws(ws):
     try:
         auth = ws.headers["authorization"]
         scheme, token = auth.split(" ", 1)
@@ -41,33 +79,6 @@ async def websocket_handler(ws):
         return
 
     await ws.accept()
-
-    client_ip = ws.scope["client"][0]
-    async with Place.reservation_context(client_ip) as ctx:
-        receive_iter = ws.receive_iter()
-        ws_api = WebsocketApi(ws.send, receive_iter, ctx, client_ip)
-        websocket_server = jsonrpc.Server(ws.send, receive_iter, ws_api)
-        await websocket_server.serve_forever()
-
-
-class WebsocketApi:
-    def __init__(self, send, receive_iter, reservation_context, client_ip):
-        self._send = send
-        self._receive_iter = receive_iter
-        self._reservation_context = reservation_context
-        self._client_ip = client_ip
-
-    async def register_exporter(self, place):
-        exporter = jsonrpc.Proxy(self._send, self._receive_iter)
-        with Place.register(place, exporter, self._client_ip):
-            await exporter.io_loop()
-
-    async def reserve(self, candidate_ids):
-        place = await Place.reserve(candidate_ids, self._reservation_context)
-        return place.desc["id"]
-
-    async def return_reservation(self, place_id):
-        await Place.return_by_id(place_id, self._reservation_context)
 
 
 class Place:

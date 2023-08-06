@@ -36,7 +36,7 @@ class Agent:
         async with contextlib.AsyncExitStack() as stack:
             url = urllib.parse.urlsplit(self._server_url)
             ws_scheme = "ws" if url.scheme == "http" else "wss"
-            uri = f"{ws_scheme}://{url.netloc}/ws"
+            uri = f"{ws_scheme}://{url.netloc}/ws-agent"
             headers = {"Authorization": "Bearer dummy-token-1"}
             ws = await stack.enter_async_context(
                 websockets.connect(uri, extra_headers=headers)
