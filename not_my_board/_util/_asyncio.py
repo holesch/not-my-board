@@ -20,11 +20,14 @@ def run(coro, debug=False):
         for signame in ["SIGHUP", "SIGINT", "SIGTERM"]:
             loop.add_signal_handler(getattr(signal, signame), signal_handler, task)
 
-        return loop.run_until_complete(task)
+        loop.run_until_complete(task)
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.run_until_complete(loop.shutdown_default_executor())
     except asyncio.CancelledError:
-        return None
+        pass
     finally:
         asyncio.set_event_loop(None)
+        loop.close()
 
 
 async def run_concurrently(*coros):
