@@ -421,7 +421,4 @@ async def _main():
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(_main())
-    except KeyboardInterrupt:
-        pass
+    util.run(_main())

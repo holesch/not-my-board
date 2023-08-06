@@ -1,8 +1,30 @@
 import asyncio
 import contextlib
+import signal
 import traceback
 
 _RELAY_BUFFER_SIZE = 64 * 1024  # 64 KiB
+
+
+def run(coro, debug=False):
+    def signal_handler(task):
+        task.cancel()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        if debug is not None:
+            loop.set_debug(debug)
+
+        task = loop.create_task(coro)
+        for signame in ["SIGHUP", "SIGINT", "SIGTERM"]:
+            loop.add_signal_handler(getattr(signal, signame), signal_handler, task)
+
+        return loop.run_until_complete(task)
+    except asyncio.CancelledError:
+        return None
+    finally:
+        asyncio.set_event_loop(None)
 
 
 async def run_concurrently(*coros):
@@ -39,11 +61,10 @@ async def cancel_tasks(tasks):
             task.cancel()
 
     for task in tasks:
-        if not task.done():
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 @contextlib.asynccontextmanager

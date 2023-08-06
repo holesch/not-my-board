@@ -5,6 +5,7 @@ from ._asyncio import (
     cancel_tasks,
     connect,
     relay_streams,
+    run,
     run_concurrently,
 )
 from ._matching import find_matching

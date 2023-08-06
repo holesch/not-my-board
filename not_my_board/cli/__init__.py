@@ -5,6 +5,7 @@ import logging
 import pathlib
 
 import not_my_board._client as client
+import not_my_board._util as util
 from not_my_board._agent import agent
 from not_my_board._export import export
 from not_my_board._serve import serve
@@ -79,7 +80,7 @@ def main():
     try:
         obj = args.func(args)
         if asyncio.iscoroutine(obj):
-            asyncio.run(obj)
+            util.run(obj, debug=True)
     except KeyboardInterrupt:
         pass
 
