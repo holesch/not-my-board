@@ -50,6 +50,19 @@ EOF
 
 mv /etc/profile.d/color_prompt.sh.disabled /etc/profile.d/70color_prompt.sh
 
+cat > /usr/local/bin/while-stdin << "EOF"
+#!/bin/sh
+# This script runs a program and reads on stdin. When stdin reaches EOF,
+# then the program is killed. This is useful to clean up processes, that
+# were started over SSH.
+# See also https://bugzilla.mindrot.org/show_bug.cgi?id=396
+"$@" &
+cat > /dev/null
+kill $!
+wait
+EOF
+chmod +x /usr/local/bin/while-stdin
+
 enable_services() {
     runlevel="$1"
     shift

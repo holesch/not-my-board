@@ -31,7 +31,20 @@ class _VM:
         )
 
     def ssh_task(self, cmd, *args, **kwargs):
-        return sh_task(f"./scripts/vmctl ssh {self._name} " + cmd, *args, **kwargs)
+        return sh_task(
+            f"./scripts/vmctl ssh {self._name} while-stdin " + cmd,
+            *args,
+            terminate=False,
+            **kwargs,
+        )
+
+    def ssh_task_root(self, cmd, *args, **kwargs):
+        return sh_task(
+            f"./scripts/vmctl ssh {self._name} doas while-stdin " + cmd,
+            *args,
+            terminate=False,
+            **kwargs,
+        )
 
     async def ssh(self, cmd, *args, **kwargs):
         return await sh(f"./scripts/vmctl ssh {self._name} " + cmd, *args, **kwargs)
@@ -89,8 +102,8 @@ async def vms():
 
 
 async def test_raw_usb_forwarding(vms):
-    async with vms.exporter.ssh_task(
-        "doas python3 -m not_my_board._usbip export 2-1", "usbip export"
+    async with vms.exporter.ssh_task_root(
+        "python3 -m not_my_board._usbip export 2-1", "usbip export"
     ):
         # wait for listening socket
         await vms.exporter.ssh_poll("nc -z 127.0.0.1 3240")
@@ -109,14 +122,16 @@ async def test_raw_usb_forwarding(vms):
             finally:
                 await vms.client.ssh("doas umount /media/usb")
 
+    await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
+
 
 async def test_usb_forwarding(vms):
     async with vms.server.ssh_task("not-my-board serve", "serve"):
         # wait for listening socket
         await vms.server.ssh_poll("nc -z 127.0.0.1 2092")
 
-        async with vms.exporter.ssh_task(
-            f"doas not-my-board export http://{vms.server.ip}:2092 ./src/tests/qemu-usb-place.toml",
+        async with vms.exporter.ssh_task_root(
+            f"not-my-board export http://{vms.server.ip}:2092 ./src/tests/qemu-usb-place.toml",
             "export",
         ):
             await vms.client.ssh("""'rm -f "$XDG_RUNTIME_DIR/not-my-board.sock"'""")
@@ -168,12 +183,12 @@ async def sh(cmd, check=True, strip=True, prefix=None):
 
 
 @contextlib.asynccontextmanager
-async def sh_task(cmd, prefix=None):
+async def sh_task(cmd, prefix=None, terminate=True):
     # need to exec, otherwise only the shell process is killed with
     # proc.terminate()
     proc = await asyncio.create_subprocess_shell(
         f"exec {cmd}",
-        stdin=asyncio.subprocess.DEVNULL,
+        stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
@@ -183,7 +198,13 @@ async def sh_task(cmd, prefix=None):
         logging_task = asyncio.create_task(_log_output(proc.stdout, cmd, prefix))
         yield
     finally:
-        proc.terminate()
+        proc.stdin.close()
+        await proc.stdin.wait_closed()
+
+        if terminate:
+            with contextlib.suppress(ProcessLookupError):
+                proc.terminate()
+
         await proc.wait()
         if logging_task:
             await logging_task
