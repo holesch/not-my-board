@@ -148,7 +148,9 @@ async def test_usb_forwarding(vms):
                 )
 
                 await vms.client.ssh("not-my-board attach ./src/tests/qemu-usb.toml")
-                await vms.client.ssh("test -e /sys/bus/usb/devices/2-1")
+                # TODO attach still returns before the device is available.
+                # would be nice if it blocks until the device is ready.
+                await vms.client.ssh_poll("test -e /sys/bus/usb/devices/2-1")
                 try:
                     await vms.exporter.usb_detach()
                     await vms.client.ssh_poll("! test -e /sys/bus/usb/devices/2-1")
