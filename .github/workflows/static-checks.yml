@@ -39,6 +39,7 @@ jobs:
       run: sudo ./scripts/vmctl makeimg
     - name: Install dependencies
       run: |
+        sudo apt-get update
         sudo apt-get install qemu-system
         pip install hatch
         hatch env create
