@@ -7,6 +7,8 @@ import logging
 import textwrap
 import traceback
 
+import not_my_board._util as util
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,10 +35,23 @@ class Server:
         self._send = send
         self._receive_iter = receive_iter
         self._api_obj = api_obj
+        self._tasks = set()
+        self._tasks_by_id = {}
 
     async def serve_forever(self):
-        async for raw_data in self._receive_iter:
+        try:
+            async for raw_data in self._receive_iter:
+                task = asyncio.create_task(self._receive(raw_data))
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
+        finally:
+            await util.cancel_tasks(self._tasks.copy())
+
+    async def _receive_task(self, raw_data):
+        try:
             await self._receive(raw_data)
+        except Exception:
+            traceback.print_exc()
 
     async def _receive(self, raw_data):
         id_ = None
@@ -49,15 +64,20 @@ class Server:
 
             next_error = (CODE_METHOD_NOT_FOUND, "Method not found")
             assert not request.method.startswith("_")
-            method = getattr(self._api_obj, request.method)
+            if request.method == "rpc.cancel":
+                method = self._cancel
+            else:
+                method = getattr(self._api_obj, request.method)
+                logger.info("Method call: %s", request.method)
 
             next_error = CODE_INTERNAL_ERROR, None
-            logger.info("Method call: %s", request.method)
-            result = await method(*request.args, **request.kwargs)
-
             if id_ is not None:
+                self._tasks_by_id[id_] = asyncio.current_task()
+                result = await method(*request.args, **request.kwargs)
                 response = Response(result, id_)
                 await self._send(bytes(response))
+            else:
+                await method(*request.args, **request.kwargs)
         except Exception as e:
             if id_ is not None:
                 code, message = next_error
@@ -66,7 +86,14 @@ class Server:
                 response = ErrorResponse.with_traceback(code, message, id_)
                 await self._send(bytes(response))
             else:
-                traceback.print_exc()
+                raise
+        finally:
+            if id_ in self._tasks_by_id:
+                del self._tasks_by_id[id_]
+
+    async def _cancel(self, id_):
+        if id_ in self._tasks_by_id:
+            await util.cancel_tasks([self._tasks_by_id[id_]])
 
 
 class Proxy:
@@ -140,10 +167,29 @@ class Proxy:
             try:
                 await self._send(bytes(request))
                 return await self._pending[id_]
+            except asyncio.CancelledError:
+                await self._cancel(id_, request.method)
+                raise
             finally:
                 del self._pending[id_]
         else:
             await self._send(bytes(request))
+
+    async def _cancel(self, to_cancel_id, to_cancel_name):
+        id_ = self._next_id
+        self._next_id += 1
+
+        request = Request("rpc.cancel", [to_cancel_id], id_)
+        logger.info("Canceling: %s", to_cancel_name)
+
+        future = asyncio.get_running_loop().create_future()
+        self._pending[id_] = future
+        try:
+            await self._send(bytes(request))
+            await self._pending[id_]
+        # don't request to cancel the cancellation if this task is canceled
+        finally:
+            del self._pending[id_]
 
 
 class Message:
