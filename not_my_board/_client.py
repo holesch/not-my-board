@@ -26,7 +26,7 @@ async def return_reservation(name):
 # pylint: disable=unused-argument
 async def attach(name, keep_others=False):
     async with agent_proxy() as proxy:
-        reserved_names = set(await proxy.list())
+        reserved_names = {e["place"] for e in await proxy.list()}
         if name in reserved_names:
             await proxy.attach(name)
         else:

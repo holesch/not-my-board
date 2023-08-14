@@ -132,7 +132,10 @@ class Agent:
             await reserved_place.detach()
 
     async def list(self):
-        return list(self._reserved_places)
+        return [
+            {"place": name, "attached": place.is_attached}
+            for name, place in self._reserved_places.items()
+        ]
 
 
 def _filter_places(spec, places):
