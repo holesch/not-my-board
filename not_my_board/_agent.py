@@ -137,6 +137,14 @@ class Agent:
             for name, place in self._reserved_places.items()
         ]
 
+    async def status(self):
+        usbip.refresh_vhci_status()
+        return [
+            {"place": name, **status}
+            for name, place in self._reserved_places.items()
+            for status in place.status
+        ]
+
 
 def _filter_places(spec, places):
     reserved_places = {}
@@ -204,7 +212,8 @@ class ReservedPlace:
             for usb_name, usb_spec in spec_part.usb.items():
                 self._tunnels.append(
                     UsbTunnel(
-                        name=f"{name}.{usb_name}",
+                        part_name=name,
+                        iface_name=usb_name,
                         proxy=proxy,
                         usbid=place_part.usb[usb_name].usbid,
                         vhci_port=usb_spec.vhci_port,
@@ -214,7 +223,8 @@ class ReservedPlace:
             for tcp_name, tcp_spec in spec_part.tcp.items():
                 self._tunnels.append(
                     TcpTunnel(
-                        name=f"{name}.{tcp_name}",
+                        part_name=name,
+                        iface_name=tcp_name,
                         proxy=proxy,
                         remote=(
                             place_part.tcp[tcp_name].host,
@@ -250,13 +260,27 @@ class ReservedPlace:
     def is_attached(self):
         return self._stack is not None
 
+    @property
+    def status(self):
+        return [
+            {
+                "part": t.part_name,
+                "interface": t.iface_name,
+                "type": t.type_name,
+                "attached": t.attached,
+            }
+            for t in self._tunnels
+        ]
+
 
 class UsbTunnel:
     _target = "usb.not-my-board.localhost", 3240
     _ready_timeout = 5
 
-    def __init__(self, name, proxy, usbid, vhci_port):
-        self._name = name
+    def __init__(self, part_name, iface_name, proxy, usbid, vhci_port):
+        self._part_name = part_name
+        self._iface_name = iface_name
+        self._name = f"{part_name}.{iface_name}"
         self._proxy = proxy
         self._usbid = usbid
         self._vhci_port = vhci_port
@@ -304,13 +328,32 @@ class UsbTunnel:
             await usbip.attach(reader, writer, self._usbid, self._vhci_port)
         logger.debug("%s: USB device attached", self._name)
 
+    @property
+    def part_name(self):
+        return self._part_name
+
+    @property
+    def iface_name(self):
+        return self._iface_name
+
+    @property
+    def type_name(self):
+        return "USB"
+
+    @property
+    def attached(self):
+        return usbip.is_attached(self._vhci_port)
+
 
 class TcpTunnel:
-    def __init__(self, name, proxy, remote, local_port):
-        self._name = name
+    def __init__(self, part_name, iface_name, proxy, remote, local_port):
+        self._part_name = part_name
+        self._iface_name = iface_name
+        self._name = f"{part_name}.{iface_name}"
         self._proxy = proxy
         self._remote = remote
         self._local_port = local_port
+        self._is_attached = False
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
@@ -319,11 +362,13 @@ class TcpTunnel:
                 util.background_task(self._tunnel_task(ready_event))
             )
             await ready_event.wait()
+            self._is_attached = True
             self._stack = stack.pop_all()
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         await self._stack.__aexit__(exc_type, exc, tb)
+        self._is_attached = False
 
     async def _tunnel_task(self, ready_event):
         localhost = "127.0.0.1"
@@ -344,6 +389,22 @@ class TcpTunnel:
             client_w.write(trailing_data)
             await client_w.drain()
             await util.relay_streams(client_r, client_w, remote_r, remote_w)
+
+    @property
+    def part_name(self):
+        return self._part_name
+
+    @property
+    def iface_name(self):
+        return self._iface_name
+
+    @property
+    def type_name(self):
+        return "TCP"
+
+    @property
+    def attached(self):
+        return self._is_attached
 
 
 class ProtocolError(Exception):

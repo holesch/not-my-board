@@ -48,6 +48,11 @@ async def list_():
         return await proxy.list()
 
 
+async def status():
+    async with agent_proxy() as proxy:
+        return await proxy.status()
+
+
 async def uevent(devpath):
     # devpath has a leading "/", so joining with the / operator doesn't
     # work

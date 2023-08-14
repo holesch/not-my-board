@@ -85,6 +85,14 @@ def main():
         "-n", "--no-header", action="store_true", help="Hide table header"
     )
 
+    subparser = add_subcommand(
+        "status", help="show status of attached places and its interfaces"
+    )
+    add_verbose_arg(subparser)
+    subparser.add_argument(
+        "-n", "--no-header", action="store_true", help="Hide table header"
+    )
+
     subparser = add_subcommand("uevent", help="handle Kernel uevent for USB devices")
     add_verbose_arg(subparser)
     subparser.add_argument("devpath", help="devpath attribute of uevent")
@@ -159,6 +167,22 @@ async def _list_command(args):
             else f"{Format.YELLOW}Reserved"
         )
         print(f"{entry['place']:<16} {status}{Format.RESET}")
+
+
+async def _status_command(args):
+    status_list = await client.status()
+
+    if not args.no_header and status_list:
+        columns = ["Place", "Part", "Type", "Interface", "Status"]
+        header = " ".join(f"{c:<16}" for c in columns).rstrip()
+        print(f"{Format.BOLD}{header}{Format.RESET}")
+
+    for entry in status_list:
+        keys = ["place", "part", "type", "interface"]
+        status = f"{Format.GREEN}Up" if entry["attached"] else f"{Format.RED}Down"
+        row = " ".join(f"{entry[k]:<16}" for k in keys)
+        row += f" {status}{Format.RESET}"
+        print(row)
 
 
 async def _uevent_command(args):

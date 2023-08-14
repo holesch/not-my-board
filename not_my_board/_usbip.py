@@ -19,6 +19,7 @@ else:
 
 
 logger = logging.getLogger(__name__)
+_vhci_status_attached = {}
 
 
 class UsbIpServer:
@@ -216,6 +217,27 @@ def detach(port):
     except OSError:
         # not attached anymore
         pass
+
+
+def refresh_vhci_status():
+    status_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/status")
+    status_attached = 6  # VDEV_ST_USED
+    with status_path.open() as f:
+        # skip header:
+        # hub port sta spd dev      sockfd local_busid
+        f.readline()
+
+        for line in f:
+            entries = line.split()
+            port = int(entries[1])
+            status = int(entries[2])
+            _vhci_status_attached[port] = status == status_attached
+    # TODO parse other status files if Kernel is compiled with more vhci
+    # ports
+
+
+def is_attached(port):
+    return _vhci_status_attached[port]
 
 
 def _enable_keep_alive(sock, extra_idle_sec=0):
