@@ -22,18 +22,25 @@ async def return_reservation(name):
         await proxy.return_reservation(name)
 
 
-# TODO implement unused-argument
-# pylint: disable=unused-argument
 async def attach(name, keep_others=False):
     async with agent_proxy() as proxy:
         reserved_names = {e["place"] for e in await proxy.list()}
         if name in reserved_names:
             await proxy.attach(name)
+
+            others = reserved_names - {name}
+            if not keep_others and others:
+                for other in others:
+                    await proxy.return_reservation(name=other, force=True)
         else:
             spec_file = _find_spec_file(name)
             spec_name = spec_file.stem
             await proxy.reserve(spec_name, spec_file.as_posix())
             await proxy.attach(spec_name)
+
+            if not keep_others and reserved_names:
+                for other in reserved_names:
+                    await proxy.return_reservation(name=other, force=True)
 
 
 async def detach(name, keep=False):

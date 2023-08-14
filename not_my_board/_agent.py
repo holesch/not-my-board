@@ -110,11 +110,14 @@ class Agent:
         finally:
             self._pending.remove(name)
 
-    async def return_reservation(self, name):
+    async def return_reservation(self, name, force=False):
         reserved_place = self._reserved_places[name]
         async with reserved_place.lock:
             if reserved_place.is_attached:
-                raise RuntimeError(f'Place "{name}" is still attached')
+                if force:
+                    await reserved_place.detach()
+                else:
+                    raise RuntimeError(f'Place "{name}" is still attached')
             await self._server_proxy.return_reservation(reserved_place.id)
             del self._reserved_places[name]
 
