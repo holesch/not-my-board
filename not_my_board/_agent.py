@@ -111,8 +111,7 @@ class Agent:
             self._pending.remove(name)
 
     async def return_reservation(self, name, force=False):
-        reserved_place = self._reserved_places[name]
-        async with reserved_place.lock:
+        async with self._reserved_place(name) as reserved_place:
             if reserved_place.is_attached:
                 if force:
                     await reserved_place.detach()
@@ -122,17 +121,26 @@ class Agent:
             del self._reserved_places[name]
 
     async def attach(self, name):
-        if name not in self._reserved_places:
-            raise RuntimeError(f'A place named "{name}" is not reserved')
-
-        reserved_place = self._reserved_places[name]
-        async with reserved_place.lock:
+        async with self._reserved_place(name) as reserved_place:
             await reserved_place.attach()
 
     async def detach(self, name):
+        async with self._reserved_place(name) as reserved_place:
+            await reserved_place.detach()
+
+    @contextlib.asynccontextmanager
+    async def _reserved_place(self, name):
+        def check_reserved():
+            if name not in self._reserved_places:
+                raise RuntimeError(f'A place named "{name}" is not reserved')
+
+        check_reserved()
         reserved_place = self._reserved_places[name]
         async with reserved_place.lock:
-            await reserved_place.detach()
+            # after waiting for the lock the place might have been returned, so
+            # check again
+            check_reserved()
+            yield reserved_place
 
     async def list(self):
         return [
