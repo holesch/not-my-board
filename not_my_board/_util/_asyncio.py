@@ -22,7 +22,8 @@ def run(coro, debug=False):
 
         loop.run_until_complete(task)
         loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.run_until_complete(loop.shutdown_default_executor())
+        if hasattr(loop, "shutdown_default_executor"):
+            loop.run_until_complete(loop.shutdown_default_executor())
     except asyncio.CancelledError:
         pass
     finally:
