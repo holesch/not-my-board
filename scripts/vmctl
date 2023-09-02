@@ -125,7 +125,7 @@ EOF
         openssh \
         openssh-server-pam \
         pam-rundir \
-        py3-hatchling \
+        py3-meson-python \
         py3-pip \
         python3 \
         tzdata \

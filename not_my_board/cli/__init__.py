@@ -11,7 +11,10 @@ from not_my_board._agent import agent
 from not_my_board._export import export
 from not_my_board._serve import serve
 
-from ..__about__ import __version__
+try:
+    from ..__about__ import __version__
+except ModuleNotFoundError:
+    __version__ = "dev"
 
 
 # pylint: disable=too-many-statements

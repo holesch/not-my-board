@@ -1,7 +1,3 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "not-my-board"
 description = ''
@@ -40,30 +36,22 @@ Source = "https://github.com/holesch/not-my-board"
 [project.scripts]
 not-my-board = "not_my_board.cli:main"
 
-[tool.hatch.version]
-path = "not_my_board/__about__.py"
-
-[tool.hatch.build.targets.sdist]
-[tool.hatch.build.targets.wheel]
-
-[tool.hatch.envs.default]
-dependencies = [
-  "black",
-  "codespell",
-  "isort",
-  "mypy",
-  "pylint",
-  "pylint-pytest",
-  "pytest",
-  "pytest-asyncio",
-  "pytest-cov",
+[project.optional-dependencies]
+test = [
+    "black",
+    "codespell",
+    "isort",
+    "mypy",
+    "pylint",
+    "pylint-pytest",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
 ]
-[tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=not_my_board --cov=tests"
-no-cov = "cov --no-cov"
 
-[[tool.hatch.envs.test.matrix]]
-python = ["37", "38", "39", "310", "311"]
+[build-system]
+build-backend = 'mesonpy'
+requires = ['meson-python']
 
 [tool.pytest.ini_options]
 addopts = ["--quiet"]
