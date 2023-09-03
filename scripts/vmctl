@@ -341,7 +341,7 @@ configure() {
     vm="$1"
 
     wait_for_sshd "$vm"
-    ssh_vm "$vm" "doas sh" < "$vmctldir/configure-$vm.sh" >&2
+    ssh_vm "$vm" "doas sh -s $vm" < "$vmctldir/configure-vm.sh" >&2
 }
 
 wait_for_sshd() {
