@@ -1,21 +1,29 @@
 [project]
+# For more information on how to specify metadata, see
+# https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
 name = "not-my-board"
-description = ''
+description = "Tool to setup, manage and use a board farm "
 readme = "README.md"
 requires-python = ">=3.7"
 license = {file = "LICENSE.txt"}
-keywords = []
 authors = [
-  { name = "Simon Holesch", email = "simon@holesch.de" },
+    {name = "Simon Holesch", email = "simon@holesch.de"},
 ]
+keywords = ["board-farm", "embedded", "testing"]
 classifiers = [
-  "Development Status :: 1 - Planning",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Embedded Systems",
+    "Topic :: Software Development :: Testing",
 ]
 dependencies = [
     "asgineer",
@@ -50,27 +58,13 @@ test = [
 ]
 
 [build-system]
-build-backend = 'mesonpy'
-requires = ['meson-python']
+build-backend = "mesonpy"
+requires = ["meson-python"]
 
 [tool.pytest.ini_options]
 addopts = ["--quiet"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-
-[tool.coverage.run]
-branch = true
-parallel = true
-omit = [
-  "not_my_board/__about__.py",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
 
 [tool.pylint.MASTER]
 load-plugins = "pylint_pytest"
