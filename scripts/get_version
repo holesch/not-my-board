@@ -1,0 +1,39 @@
+#!/bin/sh -e
+# called by meson to get project version
+
+main() {
+    if [ "$1" = "--save" ]; then
+        get_git_version > "${MESON_DIST_ROOT:?}/VERSION"
+    elif [ -e VERSION ]; then
+        cat VERSION
+    else
+        get_git_version
+    fi
+}
+
+get_git_version() {
+    version="$(git_describe)"
+    version="${version#v}" # remove "v" prefix
+
+    case "$version" in
+    *-*)
+        # not an exact match: make version PEP 440 compliant
+        # e.g. 1.2.3-5-gd63c80c is turned into 1.2.3.dev5+gd63c80c
+        latest_release="${version%%-*}"
+        suffix="${version#*-}"
+        dev_num="${suffix%%-*}"
+        commit="${suffix#*-}"
+        echo "$latest_release.dev$dev_num+$commit"
+        ;;
+    *)
+        echo "$version"
+    esac
+}
+
+git_describe() {
+    if ! git -C "${MESON_SOURCE_ROOT:-$PWD}" describe --match "v*" --tags 2>/dev/null; then
+        echo "v0.1.0-0-g$(git rev-parse --short HEAD)"
+    fi
+}
+
+main "$@"

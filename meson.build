@@ -1,4 +1,9 @@
-project('not-my-board', version: '0.1.0')
+project(
+  'not-my-board',
+  version: run_command('scripts/get_version', check: true).stdout().strip()
+)
+
+meson.add_dist_script('scripts/get_version', '--save')
 
 py = import('python').find_installation()
 
