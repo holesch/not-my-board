@@ -56,6 +56,12 @@ test = [
     "pytest-asyncio",
     "pytest-cov",
 ]
+docs = [
+    "furo",
+    "myst-parser",
+    "sphinx",
+    "sphinx-copybutton",
+]
 
 [build-system]
 build-backend = "mesonpy"
