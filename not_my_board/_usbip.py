@@ -221,6 +221,9 @@ def detach(port):
 
 def refresh_vhci_status():
     status_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/status")
+    if not status_path.exists():
+        return
+
     status_attached = 6  # VDEV_ST_USED
     with status_path.open() as f:
         # skip header:
