@@ -15,5 +15,12 @@ installation
 :hidden:
 
 tutorials/tcp
-tutorials/usb
+```
+
+```{toctree}
+:caption: How-to Guides
+:hidden:
+
+how-to-guides/usb-export
+how-to-guides/usb-import
 ```
