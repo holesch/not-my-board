@@ -18,14 +18,16 @@ release = subprocess.run(
 extensions = [
     "myst_parser",
     "sphinx_copybutton",
+    "sphinxext.opengraph",
 ]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
-html_title = f"{project}"
+html_title = f"{project} Documentation"
 
 myst_enable_extensions = [
     "deflist",
 ]
+
 # exclude prompts and output from copies
 copybutton_exclude = ".linenos, .gp, .go"
