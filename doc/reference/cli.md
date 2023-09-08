@@ -56,7 +56,11 @@ Path to an export description file.
 ```
 
 ```{option} import_description
-Path to an import description file.
+Path to an import description file or name of an import description. If a name
+is given, then the file is searched for in `./.not-my-board/<name>.toml` of the
+current working directory and every parent up to either `$HOME` or `/`. If it's
+not found, then it falls back to `$XDG_CONFIG_HOME/not-my-board/<name>.toml` or
+`~/.config/not-my-board/<name>.toml` if `$XDG_CONFIG_HOME` is not set.
 ```
 
 ```{option} -v, --verbose
