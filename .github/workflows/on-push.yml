@@ -15,11 +15,11 @@ jobs:
       run: |
         pip install .[test]
     - name: Lint with Pylint
-      run: pylint --score=n not_my_board
+      run: pylint --score=n not_my_board tests
     - name: Check format with Black
-      run: black --check --quiet not_my_board
+      run: black --check --quiet not_my_board tests doc
     - name: Check import statement order with isort
-      run: isort --check not_my_board
+      run: isort --check not_my_board tests
     - name: Check spelling
       run: git ls-files -z | xargs -0 -- codespell
   test:
