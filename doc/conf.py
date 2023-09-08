@@ -22,3 +22,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
 html_title = f"{project}"
+
+myst_enable_extensions = [
+    "deflist",
+]

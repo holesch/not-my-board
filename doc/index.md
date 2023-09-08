@@ -24,3 +24,10 @@ tutorials/tcp
 how-to-guides/usb-export
 how-to-guides/usb-import
 ```
+
+```{toctree}
+:caption: Reference
+:hidden:
+
+reference/cli
+```
