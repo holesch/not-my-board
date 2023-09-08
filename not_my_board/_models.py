@@ -6,38 +6,38 @@ import pydantic
 UsbId = pydantic.constr(regex=r"^[1-9][0-9]*-[1-9][0-9]*(\.[1-9][0-9]*)*$")
 
 
-class UsbSpec(pydantic.BaseModel):
+class UsbImportDesc(pydantic.BaseModel):
     vhci_port: pydantic.NonNegativeInt
 
 
-class TcpSpec(pydantic.BaseModel):
+class TcpImportDesc(pydantic.BaseModel):
     local_port: pydantic.PositiveInt
 
 
-class SpecPart(pydantic.BaseModel):
+class ImportedPart(pydantic.BaseModel):
     compatible: List[str]
-    usb: Dict[str, UsbSpec] = {}
-    tcp: Dict[str, TcpSpec] = {}
+    usb: Dict[str, UsbImportDesc] = {}
+    tcp: Dict[str, TcpImportDesc] = {}
 
 
-class Spec(pydantic.BaseModel):
+class ImportDesc(pydantic.BaseModel):
     name: str
-    parts: Dict[str, SpecPart]
+    parts: Dict[str, ImportedPart]
 
 
-class UsbDesc(pydantic.BaseModel):
+class UsbExportDesc(pydantic.BaseModel):
     usbid: UsbId
 
 
-class TcpDesc(pydantic.BaseModel):
+class TcpExportDesc(pydantic.BaseModel):
     host: str
     port: pydantic.PositiveInt
 
 
 class ExportedPart(pydantic.BaseModel):
     compatible: List[str]
-    usb: Dict[str, UsbDesc] = {}
-    tcp: Dict[str, TcpDesc] = {}
+    usb: Dict[str, UsbExportDesc] = {}
+    tcp: Dict[str, TcpExportDesc] = {}
 
 
 class ExportDesc(pydantic.BaseModel):

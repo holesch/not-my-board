@@ -69,13 +69,14 @@ The *Agent* is a long running process on the host of the user, to keep the
 connection to the *Server* open and to tunnel the resources from the *Exporter*.
 It listens on a Unix domain socket for commands from the *Client*.
 
-The *Client* provides a specification of the *Place* it wants, i.e. which parts
-it needs (identified by the compatible tags) and where to attach those parts.
-For example: I need a "Raspberry Pi" and want its USB serial adapter attached to
-USB port 3-4 and its USB port to 3-5. The *Agent* then filters all the exported
-*Places* based on that description and gives the *Server* a list of the matching
-candidates. As soon as the *Server* reserves one of the candidates, the *Agent*
-connects directly with the *Exporter* and attaches the resources as requested.
+The *Client* provides an import description of the *Place* it wants, i.e. which
+parts it needs (identified by the compatible tags) and where to attach those
+parts. For example: I need a "Raspberry Pi" and want its USB serial adapter
+attached to USB port 3-4 and its USB port to 3-5. The *Agent* then filters all
+the exported *Places* based on that description and gives the *Server* a list of
+the matching candidates. As soon as the *Server* reserves one of the candidates,
+the *Agent* connects directly with the *Exporter* and attaches the resources as
+requested.
 
 ## USB/IP
 

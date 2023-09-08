@@ -9,12 +9,12 @@ import sys
 import not_my_board._jsonrpc as jsonrpc
 
 
-async def reserve(name, with_name=None):
-    spec_file = _find_spec_file(name)
-    spec_name = spec_file.stem if not with_name else with_name
+async def reserve(import_description, with_name=None):
+    import_description_file = _find_import_description(import_description)
+    reservation_name = import_description_file.stem if not with_name else with_name
 
     async with agent_proxy() as proxy:
-        await proxy.reserve(spec_name, spec_file.as_posix())
+        await proxy.reserve(reservation_name, import_description_file.as_posix())
 
 
 async def return_reservation(name):
@@ -33,10 +33,10 @@ async def attach(name, keep_others=False):
                 for other in others:
                     await proxy.return_reservation(name=other, force=True)
         else:
-            spec_file = _find_spec_file(name)
-            spec_name = spec_file.stem
-            await proxy.reserve(spec_name, spec_file.as_posix())
-            await proxy.attach(spec_name)
+            import_description_file = _find_import_description(name)
+            reservation_name = import_description_file.stem
+            await proxy.reserve(reservation_name, import_description_file.as_posix())
+            await proxy.attach(reservation_name)
 
             if not keep_others and reserved_names:
                 for other in reserved_names:
@@ -97,16 +97,16 @@ async def _exec(*args, **kwargs):
         raise RuntimeError(f"{args!r} exited with {proc.returncode}")
 
 
-def _find_spec_file(name):
+def _find_import_description(name):
     if "/" in name:
-        spec_file = pathlib.Path(name)
+        import_description_file = pathlib.Path(name)
     else:
         path = pathlib.Path()
         home = pathlib.Path.home()
 
         while path != home:
-            spec_file = path / ".not-my-board" / "specs" / f"{name}.toml"
-            if spec_file.is_file():
+            import_description_file = path / ".not-my-board" / f"{name}.toml"
+            if import_description_file.is_file():
                 break
 
             if path != path.parent:
@@ -118,11 +118,11 @@ def _find_spec_file(name):
             config_home = pathlib.Path(
                 os.environ.get("XDG_CONFIG_HOME", home / ".config")
             )
-            spec_file = config_home / "not-my-board" / "specs" / f"{name}.toml"
-            if not spec_file.is_file():
-                raise ValueError(f"No spec file exists for name {name}")
+            import_description_file = config_home / "not-my-board" / f"{name}.toml"
+            if not import_description_file.is_file():
+                raise ValueError(f"No import description file exists for name {name}")
 
-    return spec_file
+    return import_description_file
 
 
 @contextlib.asynccontextmanager

@@ -59,7 +59,9 @@ def main():
     subparser = add_subcommand("reserve", help="reserve a place")
     add_verbose_arg(subparser)
     subparser.add_argument("-n", "--with-name", help="reserve under a different name")
-    subparser.add_argument("name", help="name or full path of a place specification")
+    subparser.add_argument(
+        "import_description", help="name or full path of an import description"
+    )
 
     subparser = add_subcommand("return", help="return a place")
     add_verbose_arg(subparser)
@@ -73,7 +75,9 @@ def main():
         action="store_true",
         help="don't return all other reservations",
     )
-    subparser.add_argument("name", help="name of a reserved place")
+    subparser.add_argument(
+        "name", help="name of a reserved place or an import description"
+    )
 
     subparser = add_subcommand("detach", help="detach a reserved place")
     add_verbose_arg(subparser)
@@ -142,7 +146,7 @@ async def _agent_command(args):
 
 
 async def _reserve_command(args):
-    await client.reserve(args.name, args.with_name)
+    await client.reserve(args.import_description, args.with_name)
 
 
 async def _return_command(args):

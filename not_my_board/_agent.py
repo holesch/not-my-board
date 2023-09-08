@@ -83,7 +83,7 @@ class Agent:
         socket_server = jsonrpc.Server(send, reader, self)
         await socket_server.serve_forever()
 
-    async def reserve(self, name, spec_file):
+    async def reserve(self, name, import_description_file):
         if name in self._reserved_places:
             raise RuntimeError(f'A place named "{name}" is already reserved')
 
@@ -92,13 +92,17 @@ class Agent:
 
         self._pending.add(name)
         try:
-            spec_content = util.toml_loads(pathlib.Path(spec_file).read_text())
-            spec = models.Spec(name=name, **spec_content)
+            import_description_content = util.toml_loads(
+                pathlib.Path(import_description_file).read_text()
+            )
+            import_description = models.ImportDesc(
+                name=name, **import_description_content
+            )
 
             response = await http.get_json(f"{self._server_url}/api/v1/places")
             places = [models.Place(**p) for p in response["places"]]
 
-            candidates = _filter_places(spec, places)
+            candidates = _filter_places(import_description, places)
             candidate_ids = list(candidates)
             if not candidate_ids:
                 raise RuntimeError("No matching place found")
@@ -157,28 +161,31 @@ class Agent:
         ]
 
 
-def _filter_places(spec, places):
+def _filter_places(import_description, places):
     reserved_places = {}
 
-    spec_part_sets = [
-        (name, _part_to_set(spec_part)) for name, spec_part in spec.parts.items()
+    imported_part_sets = [
+        (name, _part_to_set(imported_part))
+        for name, imported_part in import_description.parts.items()
     ]
 
     for place in places:
-        matching = _find_matching(spec_part_sets, place)
+        matching = _find_matching(imported_part_sets, place)
         if matching:
-            reserved_places[place.id] = ReservedPlace(spec, place, matching)
+            reserved_places[place.id] = ReservedPlace(
+                import_description, place, matching
+            )
 
     return reserved_places
 
 
-def _find_matching(spec_part_sets, place):
+def _find_matching(imported_part_sets, place):
     match_graph = {}
-    for name, spec_part_set in spec_part_sets:
+    for name, imported_part_set in imported_part_sets:
         match_graph[name] = []
         for place_part_idx, place_part in enumerate(place.parts):
             place_part_set = _part_to_set(place_part)
-            if spec_part_set.issubset(place_part_set):
+            if imported_part_set.issubset(place_part_set):
                 match_graph[name].append(place_part_idx)
 
         if not match_graph[name]:
@@ -208,8 +215,8 @@ def _part_to_set(part):
 
 
 class ReservedPlace:
-    def __init__(self, spec, place, matching):
-        self._spec = spec
+    def __init__(self, import_description, place, matching):
+        self._import_description = import_description
         self._place = place
         self._tunnels = []
         self._stack = None
@@ -217,21 +224,21 @@ class ReservedPlace:
         proxy = str(place.host), place.port
 
         for name, place_part_idx in matching:
-            spec_part = spec.parts[name]
+            imported_part = import_description.parts[name]
             place_part = place.parts[place_part_idx]
 
-            for usb_name, usb_spec in spec_part.usb.items():
+            for usb_name, usb_import_description in imported_part.usb.items():
                 self._tunnels.append(
                     UsbTunnel(
                         part_name=name,
                         iface_name=usb_name,
                         proxy=proxy,
                         usbid=place_part.usb[usb_name].usbid,
-                        vhci_port=usb_spec.vhci_port,
+                        vhci_port=usb_import_description.vhci_port,
                     )
                 )
 
-            for tcp_name, tcp_spec in spec_part.tcp.items():
+            for tcp_name, tcp_import_description in imported_part.tcp.items():
                 self._tunnels.append(
                     TcpTunnel(
                         part_name=name,
@@ -241,13 +248,15 @@ class ReservedPlace:
                             place_part.tcp[tcp_name].host,
                             place_part.tcp[tcp_name].port,
                         ),
-                        local_port=tcp_spec.local_port,
+                        local_port=tcp_import_description.local_port,
                     )
                 )
 
     async def attach(self):
         if self._stack is not None:
-            raise RuntimeError('Place "{self._spec.name}" is already attached')
+            raise RuntimeError(
+                'Place "{self._import_description.name}" is already attached'
+            )
 
         async with contextlib.AsyncExitStack() as stack:
             for tunnel in self._tunnels:
@@ -256,7 +265,9 @@ class ReservedPlace:
 
     async def detach(self):
         if self._stack is None:
-            raise RuntimeError('Place "{self._spec.name}" is not attached')
+            raise RuntimeError(
+                'Place "{self._import_description.name}" is not attached'
+            )
 
         try:
             await self._stack.aclose()

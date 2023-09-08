@@ -1,6 +1,6 @@
-# This is a Place Specification and is used to filter the Places registered
-# in the Board Farm. The Agent uses this Specification to reserve one of the
-# matching Places.
+# This is an Import Description and is used to filter the Places registered
+# in the Board Farm. The Agent uses this Import Description to reserve one of
+# the matching Places.
 # A Place matches, when all Parts match. A Part matches, when:
 # - the tags in "compatible" are a subset of the exported Part
 # - all USB and TCP interfaces are available (matched by name, like "usb0")
