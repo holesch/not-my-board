@@ -20,7 +20,7 @@ installation
 :caption: Tutorials
 :hidden:
 
-tutorials/tcp
+tutorials/sharing-http-server
 ```
 
 ```{toctree}
