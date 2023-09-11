@@ -36,6 +36,8 @@ how-to-guides/usb-import
 :hidden:
 
 reference/cli
+reference/export-description
+reference/import-description
 ```
 
 ```{toctree}
