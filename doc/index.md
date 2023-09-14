@@ -4,11 +4,32 @@
 schedule and provide access to those setups over a local network. The concept is
 known as a *board farm*.
 
-This project aims to give users raw access to the hardware setup without any
-abstractions. Users should be able to use the same tools they'd use, if they
-plug in the hardware directly. Maintaining abstractions separate from the board
-farm has the benefit, that those abstractions can be used on locally attached
-hardware as well.
+## Why use a board farm?
+
+- **same board for development and CI:** You have access to the same setup when
+  writing the tests as the CI has when running the tests, so you don't have to
+  figure out the differences when something goes wrong.
+- **share scarce boards and equipment:** If you just have a single setup of a
+  kind, you can share it between multiple developers without carrying it around.
+- **centralize maintenance of hardware setups:** You can make a person or team
+  responsible for maintaining all boards in the farm.
+- **remote access from anywhere:** Since you already access the boards remotely
+  when in the office, you can access them the same way when working from home.
+- **make room on your desk:** There's a limit of how many boards you can fit on
+  your desk. With a board farm you have access to all the boards without giving
+  up any space on your desk.
+
+## Why use `not-my-board`?
+
+- **raw access to boards**: `not-my-board` puts no abstractions between you and
+  your board. It forwards USB devices with USB/IP and tunnels TCP ports to your
+  host.
+- **use the same tools**: You don't need to learn new tools or libraries to work
+  with your board. Just flash your board with the vendor tool you used before or
+  access the serial console with `/dev/ttyUSB0`.
+- **independent of test framework**: `not-my-board` doesn't run your tests. It
+  just makes the board available on your host, so you can run any test framework
+  you like.
 
 ```{toctree}
 :hidden:
