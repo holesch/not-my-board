@@ -37,7 +37,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-Documentation = "https://github.com/holesch/not-my-board#readme"
+Documentation = "http://not-my-board.readthedocs.io"
 Issues = "https://github.com/holesch/not-my-board/issues"
 Source = "https://github.com/holesch/not-my-board"
 
