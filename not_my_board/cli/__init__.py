@@ -9,7 +9,7 @@ import not_my_board._client as client
 import not_my_board._util as util
 from not_my_board._agent import agent
 from not_my_board._export import export
-from not_my_board._serve import serve
+from not_my_board._hub import hub
 
 try:
     from ..__about__ import __version__
@@ -40,21 +40,21 @@ def main():
             "-v", "--verbose", action="store_true", help="Enable debug logs"
         )
 
-    subparser = add_subcommand("serve", help="start the board farm server")
+    subparser = add_subcommand("hub", help="start the board farm hub")
     subparser.set_defaults(verbose=True)
 
     subparser = add_subcommand(
         "export", help="make connected boards available in the board farm"
     )
     subparser.set_defaults(verbose=True)
-    subparser.add_argument("server_url", help="http(s) URL of the server")
+    subparser.add_argument("hub_url", help="http(s) URL of the hub")
     subparser.add_argument(
         "export_description", type=pathlib.Path, help="path to a export description"
     )
 
     subparser = add_subcommand("agent", help="start an agent")
     subparser.set_defaults(verbose=True)
-    subparser.add_argument("server_url", help="http(s) URL of the server")
+    subparser.add_argument("hub_url", help="http(s) URL of the hub")
 
     subparser = add_subcommand("reserve", help="reserve a place")
     add_verbose_arg(subparser)
@@ -133,16 +133,16 @@ def main():
         pass
 
 
-def _serve_command(_):
-    serve()
+def _hub_command(_):
+    hub()
 
 
 async def _export_command(args):
-    await export(args.server_url, args.export_description)
+    await export(args.hub_url, args.export_description)
 
 
 async def _agent_command(args):
-    await agent(args.server_url)
+    await agent(args.hub_url)
 
 
 async def _reserve_command(args):

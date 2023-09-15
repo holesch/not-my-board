@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 valid_tokens = ("dummy-token-1", "dummy-token-2")
 
 
-def serve():
+def hub():
     asgineer.run(asgi_app, "uvicorn", ":2092")
 
 

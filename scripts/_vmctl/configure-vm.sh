@@ -6,8 +6,8 @@ main() {
     set -ex
 
     case "$vm" in
-    server)
-        setup_network_server
+    hub)
+        setup_network_hub
         install_project
         ;;
     exporter)
@@ -26,7 +26,7 @@ main() {
     esac
 }
 
-setup_network_server() {
+setup_network_hub() {
     ip link add name br0 type bridge
     ip link set eth1 up
     ip link set dev eth1 master br0

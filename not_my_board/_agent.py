@@ -19,14 +19,14 @@ import not_my_board._util as util
 logger = logging.getLogger(__name__)
 
 
-async def agent(server_url):
-    async with Agent(server_url) as a:
+async def agent(hub_url):
+    async with Agent(hub_url) as a:
         await a.serve_forever()
 
 
 class Agent:
-    def __init__(self, server_url):
-        self._server_url = server_url
+    def __init__(self, hub_url):
+        self._hub_url = hub_url
         self._reserved_places = {}
         self._pending = set()
 
@@ -34,7 +34,7 @@ class Agent:
         runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
 
         async with contextlib.AsyncExitStack() as stack:
-            url = urllib.parse.urlsplit(self._server_url)
+            url = urllib.parse.urlsplit(self._hub_url)
             ws_scheme = "ws" if url.scheme == "http" else "wss"
             uri = f"{ws_scheme}://{url.netloc}/ws-agent"
             headers = {"Authorization": "Bearer dummy-token-1"}
@@ -49,7 +49,7 @@ class Agent:
                 except websockets.ConnectionClosedOK:
                     pass
 
-            self._server_proxy = jsonrpc.Proxy(ws.send, receive_iter())
+            self._hub_proxy = jsonrpc.Proxy(ws.send, receive_iter())
 
             stack.push_async_callback(self._cleanup)
 
@@ -72,7 +72,7 @@ class Agent:
     # TODO: hide from JSON-RPC interface
     async def serve_forever(self):
         await util.run_concurrently(
-            self._unix_server.serve_forever(), self._server_proxy.io_loop()
+            self._unix_server.serve_forever(), self._hub_proxy.io_loop()
         )
 
     async def _handle_client(self, reader, writer):
@@ -99,7 +99,7 @@ class Agent:
                 name=name, **import_description_content
             )
 
-            response = await http.get_json(f"{self._server_url}/api/v1/places")
+            response = await http.get_json(f"{self._hub_url}/api/v1/places")
             places = [models.Place(**p) for p in response["places"]]
 
             candidates = _filter_places(import_description, places)
@@ -107,7 +107,7 @@ class Agent:
             if not candidate_ids:
                 raise RuntimeError("No matching place found")
 
-            place_id = await self._server_proxy.reserve(candidate_ids)
+            place_id = await self._hub_proxy.reserve(candidate_ids)
 
             assert name not in self._reserved_places
             self._reserved_places[name] = candidates[place_id]
@@ -121,7 +121,7 @@ class Agent:
                     await reserved_place.detach()
                 else:
                     raise RuntimeError(f'Place "{name}" is still attached')
-            await self._server_proxy.return_reservation(reserved_place.id)
+            await self._hub_proxy.return_reservation(reserved_place.id)
             del self._reserved_places[name]
 
     async def attach(self, name):

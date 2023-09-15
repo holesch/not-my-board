@@ -53,8 +53,8 @@ class _VM:
         return await sh_poll(f"./scripts/vmctl ssh {self._name} " + cmd, timeout)
 
 
-class ServerVM(_VM):
-    _name = "server"
+class HubVM(_VM):
+    _name = "hub"
     ip = "192.168.200.1"
 
 
@@ -74,12 +74,12 @@ class ClientVM(_VM):
     ip = "192.168.200.3"
 
 
-VMs = collections.namedtuple("VMs", ["server", "exporter", "client"])
+VMs = collections.namedtuple("VMs", ["hub", "exporter", "client"])
 
 
 @pytest.fixture(scope="session")
 async def vms():
-    async with ServerVM() as server:
+    async with HubVM() as hub:
         while True:
             try:
                 async with util.connect("127.0.0.1", 5001):
@@ -93,12 +93,12 @@ async def vms():
         async with ExporterVM() as exporter:
             async with ClientVM() as client:
                 await util.run_concurrently(
-                    server.configure(),
+                    hub.configure(),
                     exporter.configure(),
                     client.configure(),
                 )
                 await exporter.usb_attach()
-                yield VMs(server, exporter, client)
+                yield VMs(hub, exporter, client)
 
 
 async def test_raw_usb_forwarding(vms):
@@ -126,17 +126,17 @@ async def test_raw_usb_forwarding(vms):
 
 
 async def test_usb_forwarding(vms):
-    async with vms.server.ssh_task("not-my-board serve", "serve"):
+    async with vms.hub.ssh_task("not-my-board hub", "hub"):
         # wait for listening socket
-        await vms.server.ssh_poll("nc -z 127.0.0.1 2092")
+        await vms.hub.ssh_poll("nc -z 127.0.0.1 2092")
 
         async with vms.exporter.ssh_task_root(
-            f"not-my-board export http://{vms.server.ip}:2092 ./src/tests/qemu-usb-place.toml",
+            f"not-my-board export http://{vms.hub.ip}:2092 ./src/tests/qemu-usb-place.toml",
             "export",
         ):
             await vms.client.ssh("""'rm -f "$XDG_RUNTIME_DIR/not-my-board.sock"'""")
             async with vms.client.ssh_task(
-                f"not-my-board agent http://{vms.server.ip}:2092", "agent"
+                f"not-my-board agent http://{vms.hub.ip}:2092", "agent"
             ):
                 # wait until exported place is registered
                 await vms.client.ssh_poll(

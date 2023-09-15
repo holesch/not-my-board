@@ -5,10 +5,10 @@ through the board farm. You will do this all on a single host, so you can
 interact with all the components easily and get a complete picture of the board
 farm.
 
-First, start the board farm server. The server listens on port `2092` by
-default. Leave it running and continue in a new terminal window.
+First, start the board farm hub. The hub listens on port `2092` by default.
+Leave it running and continue in a new terminal window.
 ```console
-$ not-my-board serve
+$ not-my-board hub
 ```
 
 Now start the simple HTTP server, that will be shared with the board farm. Use

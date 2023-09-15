@@ -24,7 +24,7 @@ positional arguments:
     configure  configure VM
     ssh        ssh into VM
     usb        control the USB device connected to the exporter
-  vm           select VM, one of "server", "exporter", "client"
+  vm           select VM, one of "hub", "exporter", "client"
   prog         program and arguments to run in VM
 EOF
     exit 0
@@ -199,7 +199,7 @@ run() {
     vm="$1"
 
     case "$vm" in
-        server)
+        hub)
             qemu_exec \
                 qemu_forward_ssh 4022 \
                 qemu_virtfs \
@@ -381,7 +381,7 @@ ssh_vm() {
     shift
 
     case "$vm" in
-        server) port=4022;;
+        hub) port=4022;;
         exporter) port=4122;;
         client) port=4222;;
         *) usage_error "unrecognized vm"

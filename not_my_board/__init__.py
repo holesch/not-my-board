@@ -1,1 +1,1 @@
-from ._serve import asgi_app
+from ._hub import asgi_app

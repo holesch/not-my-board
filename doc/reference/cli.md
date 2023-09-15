@@ -4,14 +4,14 @@ Here's a description of all the commands and options `not-my-board` supports.
 
 ## Commands
 
-**`serve`** [**`-h`**|**`--help`**]
-: Start the board farm *Server*. There should be only one server in the entire
+**`hub`** [**`-h`**|**`--help`**]
+: Start the board farm *Hub*. There should be only one hub in the entire
   network.
 
-**`export`** [**`-h`**|**`--help`**] *server_url* *export_description*
+**`export`** [**`-h`**|**`--help`**] *hub_url* *export_description*
 : Make connected boards and equipment available in the board farm.
 
-**`agent`** [**`-h`**|**`--help`**] *server_url*
+**`agent`** [**`-h`**|**`--help`**] *hub_url*
 : Start an *Agent*.
 
 **`reserve`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] [**`-n`**|**`--with-name`** *name*] *import_description*
@@ -47,8 +47,8 @@ Here's a description of all the commands and options `not-my-board` supports.
 Show help message and exit.
 ```
 
-```{option} server_url
-HTTP or HTTPS URL of the _Server_.
+```{option} hub_url
+HTTP or HTTPS URL of the *Hub*.
 ```
 
 ```{option} export_description

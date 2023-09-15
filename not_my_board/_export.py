@@ -19,14 +19,14 @@ import not_my_board._util as util
 logger = logging.getLogger(__name__)
 
 
-async def export(server_url, place):
-    async with Exporter(server_url, place) as exporter:
+async def export(hub_url, place):
+    async with Exporter(hub_url, place) as exporter:
         await exporter.serve_forever()
 
 
 class Exporter:
-    def __init__(self, server_url, export_desc_path):
-        self._server_url = server_url
+    def __init__(self, hub_url, export_desc_path):
+        self._hub_url = hub_url
         self._ip_to_tasks_map = {}
         export_desc_content = export_desc_path.read_text()
         self._place = models.ExportDesc(**util.toml_loads(export_desc_content))
@@ -57,7 +57,7 @@ class Exporter:
                 )
             )
 
-            url = f"{self._server_url}/ws-exporter"
+            url = f"{self._hub_url}/ws-exporter"
             auth = "Bearer dummy-token-1"
             self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
             self._ws_server = jsonrpc.Server(self._ws.send, self._receive_iter(), self)
