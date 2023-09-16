@@ -71,13 +71,6 @@ async def uevent(devpath):
 
     pipe = pathlib.Path("/run/usbip-refresh-" + busid)
     if pipe.exists():
-        print(f"Binding to usbip-host: {busid}", file=sys.stderr)
-        match_busid_path = pathlib.Path("/sys/bus/usb/drivers/usbip-host/match_busid")
-        if not match_busid_path.exists():
-            await _exec("modprobe", "usbip-host")
-        match_busid_path.write_text(f"add {busid}")
-        bind_path = pathlib.Path("/sys/bus/usb/drivers/usbip-host/bind")
-        bind_path.write_text(busid)
         with pipe.open("r+b", buffering=0) as f:
             f.write(b".")
     else:
@@ -88,13 +81,6 @@ async def uevent(devpath):
         except OSError:
             # fails for USB Hubs
             pass
-
-
-async def _exec(*args, **kwargs):
-    proc = await asyncio.create_subprocess_exec(*args, **kwargs)
-    await proc.communicate()
-    if proc.returncode:
-        raise RuntimeError(f"{args!r} exited with {proc.returncode}")
 
 
 def _find_import_description(name):

@@ -126,7 +126,12 @@ class UsbIpDevice:
         await self._stack.__aexit__(exc_type, exc, tb)
 
     async def available(self):
-        while not self._is_available():
+        while True:
+            await self._ensure_usbip_host_driver()
+
+            if self._is_available():
+                break
+
             self._refresh_event.clear()
             await self._refresh_event.wait()
 
@@ -148,6 +153,27 @@ class UsbIpDevice:
 
         logger.debug("Device %s is not available, yet", self.busid)
         return False
+
+    async def _ensure_usbip_host_driver(self):
+        driver_path = self._sysfs_path / "driver"
+        if driver_path.exists():
+            driver_name = driver_path.resolve().name
+            if driver_name != "usbip-host":
+                logger.info(
+                    'Unbinding USB device %s from driver "%s"', self._busid, driver_name
+                )
+                (driver_path / "unbind").write_text(self._busid)
+                await self._bind_usbip_host_driver()
+        else:
+            await self._bind_usbip_host_driver()
+
+    async def _bind_usbip_host_driver(self):
+        logger.info('Binding USB device %s to driver "usbip-host"', self._busid)
+        usbip_host_driver = pathlib.Path("/sys/bus/usb/drivers/usbip-host")
+        if not usbip_host_driver.exists():
+            await _exec("modprobe", "usbip-host")
+        (usbip_host_driver / "match_busid").write_text(f"add {self._busid}")
+        (usbip_host_driver / "bind").write_text(self._busid)
 
     @property
     def busid(self):
@@ -181,6 +207,13 @@ class UsbIpDevice:
     bConfigurationValue = _SysfsFileHex(default=0)
     bNumConfigurations = _SysfsFileHex()
     bNumInterfaces = _SysfsFileHex(default=0)
+
+
+async def _exec(*args, **kwargs):
+    proc = await asyncio.create_subprocess_exec(*args, **kwargs)
+    await proc.communicate()
+    if proc.returncode:
+        raise RuntimeError(f"{args!r} exited with {proc.returncode}")
 
 
 async def attach(reader, writer, busid, port):

@@ -73,8 +73,6 @@ EOF
 
     echo > /dev/mdev.seq
     echo > /dev/mdev.log
-    # mark busid 2-1, so it will be bound to usbip-host driver
-    echo > /run/usbip-refresh-2-1
 
     /etc/init.d/mdev restart
 }
