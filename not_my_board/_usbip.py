@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import dataclasses
+import itertools
 import logging
 import os
 import pathlib
@@ -253,23 +254,29 @@ def detach(port):
 
 
 def refresh_vhci_status():
-    status_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/status")
-    if not status_path.exists():
-        return
+    def status_paths():
+        vhci_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0")
+        # the first status path doesn't have a suffix
+        yield vhci_path / "status"
+
+        for num in itertools.count(1):
+            status_path = vhci_path / f"status.{num}"
+            if status_path.exists():
+                yield status_path
 
     status_attached = 6  # VDEV_ST_USED
-    with status_path.open() as f:
-        # skip header:
-        # hub port sta spd dev      sockfd local_busid
-        f.readline()
 
-        for line in f:
-            entries = line.split()
-            port = int(entries[1])
-            status = int(entries[2])
-            _vhci_status_attached[port] = status == status_attached
-    # TODO parse other status files if Kernel is compiled with more vhci
-    # ports
+    for status_path in status_paths():
+        with status_path.open() as f:
+            # skip header:
+            # hub port sta spd dev      sockfd local_busid
+            f.readline()
+
+            for line in f:
+                entries = line.split()
+                port = int(entries[1])
+                status = int(entries[2])
+                _vhci_status_attached[port] = status == status_attached
 
 
 def is_attached(port):
