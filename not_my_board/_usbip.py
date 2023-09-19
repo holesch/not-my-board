@@ -217,7 +217,7 @@ async def _exec(*args, **kwargs):
         raise RuntimeError(f"{args!r} exited with {proc.returncode}")
 
 
-async def attach(reader, writer, busid, port):
+async def attach(reader, writer, busid, port_num):
     sock = writer.transport.get_extra_info("socket")
     # Client waits 2 seconds longer before sending keep alive probes, otherwise
     # both sides start sending at the same time.
@@ -239,15 +239,59 @@ async def attach(reader, writer, busid, port):
 
         attach_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/attach")
         devid = (reply.busnum << 16) | reply.devnum
-        attach_path.write_text(f"{port} {fd} {devid} {reply.speed}\n")
+        vhci_port = _port_num_to_vhci_port(port_num, reply.speed)
+        logger.debug("Attaching USB device to port %d", vhci_port)
+        attach_path.write_text(f"{vhci_port} {fd} {devid} {reply.speed}\n")
     finally:
         os.close(fd)
 
+    return vhci_port
 
-def detach(port):
+
+def _port_num_to_vhci_port(port_num, speed):
+    """Map port_num and speed to port, that is passed to Kernel
+
+    example with vhci_nr_hcs=2 and nports=8:
+
+        vhci_hcd    hub   speed  port_num  vhci_port
+        vhci_hcd.0  usb1  hs     0         0
+        vhci_hcd.0  usb1  hs     1         1
+        vhci_hcd.0  usb2  ss     0         2
+        vhci_hcd.0  usb2  ss     1         3
+        vhci_hcd.1  usb3  hs     2         4
+        vhci_hcd.1  usb3  hs     3         5
+        vhci_hcd.1  usb4  ss     2         6
+        vhci_hcd.1  usb4  ss     3         7
+    """
+
+    platform_path = pathlib.Path("/sys/devices/platform")
+    vhci_nr_hcs = len(list(platform_path.glob("vhci_hcd.*")))
+    nports = int((platform_path / "vhci_hcd.0/nports").read_text())
+
+    # calculate number of ports each vhci_hcd.* has
+    vhci_ports = nports // vhci_nr_hcs
+    # calculate number of ports each hub has
+    vhci_hc_ports = vhci_ports // 2
+
+    vhci_hcd_nr = port_num // vhci_hc_ports
+    vhci_port = (vhci_hcd_nr * vhci_ports) + (port_num % vhci_hc_ports)
+
+    super_speed = 5  # USB_SPEED_SUPER (USB 3.0)
+    if speed == super_speed:
+        vhci_port += vhci_hc_ports
+
+    if vhci_port >= nports:
+        raise RuntimeError(
+            f"Configured port_num is out of range. Expected max {(nports // 2) - 1}, got {port_num}"
+        )
+
+    return vhci_port
+
+
+def detach(vhci_port):
     detach_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/detach")
     try:
-        detach_path.write_text(f"{port}")
+        detach_path.write_text(f"{vhci_port}")
     except OSError:
         # not attached anymore
         pass
@@ -462,7 +506,9 @@ async def _main():
     subparser.add_argument(
         "busid", help='busid of the device to import, e.g. "1-5.1.4"'
     )
-    subparser.add_argument("vhci_port", help='vhci port to attach device to, e.g. "0"')
+    subparser.add_argument(
+        "port_num", type=int, help='port to attach device to, e.g. "0"'
+    )
     subparser.add_argument("-p", "--port", default=3240, help="port to connect to")
 
     args = parser.parse_args()
@@ -473,7 +519,7 @@ async def _main():
             reader, writer = await asyncio.open_connection(
                 args.host, args.port, family=socket.AF_INET
             )
-            await attach(reader, writer, args.busid, args.vhci_port)
+            await attach(reader, writer, args.busid, args.port_num)
     else:
         device = UsbIpDevice(args.busid)
         async with UsbIpServer([device]) as usbip_server:

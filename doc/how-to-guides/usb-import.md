@@ -40,12 +40,12 @@ Create the import description for the place you want to import, e.g.:
 
 [parts.example]
 compatible = [ "example-board" ]
-usb.usb0 = { vhci_port = 0 }
-usb.usb-serial = { vhci_port = 1 }
+usb.usb0 = { port_num = 0 }
+usb.usb-serial = { port_num = 1 }
 ```
 
-Just count up the `vhci_port` for every USB interface. With the Kernel defaults
-there are 8 ports available.
+Just count up the `port_num` for every USB interface. With the Kernel defaults
+there are `8` ports available.
 
 Finally, reserve and attach the place:
 ```console

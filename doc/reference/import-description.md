@@ -78,22 +78,15 @@ Request one exported USB port. `<if-name>` is a free-form string.
 `<if-name>s` are used for filtering *Places*, so they should be defined and
 agreed upon by every participant of the board farm.
 
-### `parts.<part-name>.usb.<if-name>.vhci_port`
+### `parts.<part-name>.usb.<if-name>.port_num`
 
 **Type:** Number \
 **Required:** Yes
 
-Configures the *Agent* to attach the exported remote USB device to this local
-USB Virtual Host Controller Interface (VHCI). The default Kernel config limits
-the number of ports to `16`, that means valid values are in that case numbers
-between `0` and `15`.
-
-```{warning}
-The port that can be used depends on the speed of the USB device. High Speed
-devices can be attached to ports `0` to `7` and SuperSpeed devices can be
-attached to ports `8` to `15`. For now the user needs to configure this
-correctly, but this will be handled by `not-my-board` in a future version.
-```
+Configures the virtual USB port, which is used to attach the exported remote USB
+device. The *Agent* selects the actual virtual USB hub and port based on
+`port_num` and the speed of the imported USB device. The default Kernel config
+limits the number of ports, so that `port_num` must be between `0` and `7`.
 
 ## Example
 
@@ -101,8 +94,8 @@ Here's an example of an import description:
 ```{code-block} toml
 [parts.pi]
 compatible = [ "raspberry-pi" ]
-usb.usb0 = { vhci_port = 0 }
-usb.serial = { vhci_port = 1 }
+usb.usb0 = { port_num = 0 }
+usb.serial = { port_num = 1 }
 
 [parts.power]
 compatible = [ "my-power-supply" ]

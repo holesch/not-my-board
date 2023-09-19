@@ -234,7 +234,7 @@ class ReservedPlace:
                         iface_name=usb_name,
                         proxy=proxy,
                         usbid=place_part.usb[usb_name].usbid,
-                        vhci_port=usb_import_description.vhci_port,
+                        port_num=usb_import_description.port_num,
                     )
                 )
 
@@ -299,13 +299,14 @@ class UsbTunnel:
     _target = "usb.not-my-board.localhost", 3240
     _ready_timeout = 5
 
-    def __init__(self, part_name, iface_name, proxy, usbid, vhci_port):
+    def __init__(self, part_name, iface_name, proxy, usbid, port_num):
         self._part_name = part_name
         self._iface_name = iface_name
         self._name = f"{part_name}.{iface_name}"
         self._proxy = proxy
         self._usbid = usbid
-        self._vhci_port = vhci_port
+        self._port_num = port_num
+        self._vhci_port = None
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
@@ -339,7 +340,8 @@ class UsbTunnel:
                     await asyncio.sleep(retry_timeout)
                     retry_timeout = min(2 * retry_timeout, 30)
         finally:
-            usbip.detach(self._vhci_port)
+            if self._vhci_port is not None:
+                usbip.detach(self._vhci_port)
             logger.debug("%s: USB device detached", self._name)
 
     async def _attach(self):
@@ -347,7 +349,9 @@ class UsbTunnel:
         async with tunnel as (reader, writer, trailing_data):
             if trailing_data:
                 raise ProtocolError("USB/IP implementation cannot handle trailing data")
-            await usbip.attach(reader, writer, self._usbid, self._vhci_port)
+            self._vhci_port = await usbip.attach(
+                reader, writer, self._usbid, self._port_num
+            )
         logger.debug("%s: USB device attached", self._name)
 
     @property
@@ -364,7 +368,9 @@ class UsbTunnel:
 
     @property
     def attached(self):
-        return usbip.is_attached(self._vhci_port)
+        return (
+            usbip.is_attached(self._vhci_port) if self._vhci_port is not None else False
+        )
 
 
 class TcpTunnel:

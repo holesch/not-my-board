@@ -7,7 +7,7 @@ UsbId = pydantic.constr(regex=r"^[1-9][0-9]*-[1-9][0-9]*(\.[1-9][0-9]*)*$")
 
 
 class UsbImportDesc(pydantic.BaseModel):
-    vhci_port: pydantic.NonNegativeInt
+    port_num: pydantic.NonNegativeInt
 
 
 class TcpImportDesc(pydantic.BaseModel):
