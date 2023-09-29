@@ -301,12 +301,12 @@ def refresh_vhci_status():
     def status_paths():
         vhci_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0")
         # the first status path doesn't have a suffix
-        yield vhci_path / "status"
+        status_path = vhci_path / "status"
+        count = itertools.count(1)
 
-        for num in itertools.count(1):
-            status_path = vhci_path / f"status.{num}"
-            if status_path.exists():
-                yield status_path
+        while status_path.exists():
+            yield status_path
+            status_path = vhci_path / f"status.{next(count)}"
 
     status_attached = 6  # VDEV_ST_USED
 
