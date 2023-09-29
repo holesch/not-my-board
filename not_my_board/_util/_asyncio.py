@@ -21,12 +21,12 @@ def run(coro, debug=False):
             loop.add_signal_handler(getattr(signal, signame), signal_handler, task)
 
         loop.run_until_complete(task)
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        if hasattr(loop, "shutdown_default_executor"):
-            loop.run_until_complete(loop.shutdown_default_executor())
     except asyncio.CancelledError:
         pass
     finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        if hasattr(loop, "shutdown_default_executor"):
+            loop.run_until_complete(loop.shutdown_default_executor())
         asyncio.set_event_loop(None)
         loop.close()
 
