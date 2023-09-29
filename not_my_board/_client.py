@@ -64,23 +64,16 @@ async def uevent(devpath):
     # devpath has a leading "/", so joining with the / operator doesn't
     # work
     sysfs_path = pathlib.Path("/sys" + devpath)
-    busnum = (sysfs_path / "busnum").read_text().rstrip()
-    devpath = (sysfs_path / "devpath").read_text().rstrip()
+    devname = sysfs_path.name
 
-    busid = f"{busnum}-{devpath}"
-
-    pipe = pathlib.Path("/run/usbip-refresh-" + busid)
+    pipe = pathlib.Path("/run/usbip-refresh-" + devname)
     if pipe.exists():
         with pipe.open("r+b", buffering=0) as f:
             f.write(b".")
     else:
-        print(f"Loading default driver: {busid}", file=sys.stderr)
+        print(f"Loading default driver: {devname}", file=sys.stderr)
         probe_path = pathlib.Path("/sys/bus/usb/drivers_probe")
-        try:
-            probe_path.write_text(busid)
-        except OSError:
-            # fails for USB Hubs
-            pass
+        probe_path.write_text(devname)
 
 
 def _find_import_description(name):
