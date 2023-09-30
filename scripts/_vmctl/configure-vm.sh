@@ -65,10 +65,14 @@ mount_project_source() {
 
 reconfigure_device_manager() {
     echo 0 > /sys/bus/usb/drivers_autoprobe
-    modprobe usbip-host
 
+    # continue with other rules after loading the Kernel driver
+    sed -i 's/^$MODALIAS=.*/-\0/' /etc/mdev.conf
+
+    # add not-my-board hook
     cat >> /etc/mdev.conf << "EOF"
-SUBSYSTEM=usb;DEVTYPE=usb_device;DEVPATH=.;.* root:root 0600 @not-my-board uevent "$DEVPATH"
+
+SUBSYSTEM=usb;DEVPATH=.;.* root:root 0600 @not-my-board uevent --verbose "$DEVPATH"
 EOF
 
     echo > /dev/mdev.seq

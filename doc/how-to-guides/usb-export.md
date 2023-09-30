@@ -16,7 +16,7 @@ Most popular Linux distributions use `udev` as a device manager. To integrate
 `not-my-board` create a new rules file:
 
 ```{code-block}
-:caption: /etc/udev/rules.d/30-usbip.rules
+:caption: /etc/udev/rules.d/85-usbip.rules
 
 # disable autoprobe
 ACTION=="add|change", KERNEL=="usb", SUBSYSTEM=="subsystem", \
@@ -24,6 +24,12 @@ ACTION=="add|change", KERNEL=="usb", SUBSYSTEM=="subsystem", \
 
 ACTION=="add", SUBSYSTEM=="usb", \
     RUN+="/usr/bin/systemd-cat -t not-my-board-uevent /usr/local/bin/not-my-board uevent --verbose '$devpath'"
+```
+
+```{note}
+Drivers need to be loaded, before the device can be probed successfully. Make
+sure this rules file comes after the driver loading rules file (by default
+`80-drivers.rules`).
 ```
 
 Then you need to reload the rules files and trigger the USB subsystem, to
@@ -46,11 +52,18 @@ default. To integrate `not-my-board` add a new rule to the `mdev` config file:
 ```{code-block}
 :caption: /etc/mdev.conf
 
-SUBSYSTEM=usb;DEVTYPE=usb_device;DEVPATH=.;.* root:root 0600 @not-my-board uevent "$DEVPATH"
+SUBSYSTEM=usb;DEVPATH=.;.* root:root 0600 @not-my-board uevent --verbose "$DEVPATH"
+```
+
+Make sure to put this rule after the `MODALIAS` driver loading rule and modify
+the `MODALIAS` rule to continue with the other rules by prepending a `-`:
+
+```
+-$MODALIAS=.*    root:root 0660 @modprobe -b "$MODALIAS"
 ```
 
 Then disable auto-probe:
-```{code-block} console
+```console
 $ sudo sh -c 'echo 0 > /sys/bus/usb/drivers_autoprobe'
 ```
 
@@ -75,7 +88,7 @@ $ sudo dmesg | grep usb
 ```
 
 Now create the export description with the `usbid` of the USB device. If your
-board has more than one USB interfaces, you can of course add them all:
+board has more than one USB interface, you can of course add them all:
 ```{code-block} toml
 :caption: /etc/not-my-board/example.toml
 
