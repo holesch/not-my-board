@@ -66,5 +66,5 @@ reference/import-description
 :hidden:
 
 explanation/overview
-explanation/sensible-usb-devices
+explanation/sensitive-usb-devices
 ```
