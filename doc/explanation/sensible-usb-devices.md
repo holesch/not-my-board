@@ -1,6 +1,6 @@
-# About Sensible USB Devices
+# About Sensitive USB Devices
 
-Some USB implementations are more sensible than others. Since there are slight
+Some USB implementations are more sensitive than others. Since there are slight
 differences in the packets sent, when using USB/IP, those devices might break or
 behave differently as they would, if they were connected directly.
 
@@ -9,7 +9,7 @@ side: By default the Kernel binds a matching driver, so that the device can be
 used immediately. When exporting a USB device though, we need to bind the device
 to the `usbip-host` driver instead of the default one. For most USB devices it
 is fine to just unbind the default driver and bind the USB/IP one. This however
-enumerates the device twice and can cause issues in sensible USB stacks. So
+enumerates the device twice and can cause issues in sensitive USB stacks. So
 instead of unbinding the default driver and binding the USB/IP driver after
 that, we need to prevent binding the default driver in the first place. We do
 this by changing the `drivers_autoprobe` setting (see
