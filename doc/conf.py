@@ -31,3 +31,6 @@ myst_enable_extensions = [
 
 # exclude prompts and output from copies
 copybutton_exclude = ".linenos, .gp, .go"
+
+# add search console verification
+html_extra_path = ["googlef248cffc234a230d.html"]
