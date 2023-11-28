@@ -37,6 +37,9 @@ jobs:
         sudo apt-get update
         sudo apt-get install qemu-system
         pip install .[test]
+    - name: Allow kvm usage
+      run: |
+        sudo chmod o+rw /dev/kvm || :
     - name: Run tests
       run: pytest -s
   release:

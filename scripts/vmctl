@@ -229,7 +229,7 @@ qemu_exec() {
     # use "Standard PC"
     set -- "$@" -machine q35
 
-    if [ -e /dev/kvm ]; then
+    if [ -w /dev/kvm ]; then
         # use host CPU model
         set -- "$@" -cpu host
         # use kvm acceleration
