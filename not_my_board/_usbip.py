@@ -165,7 +165,7 @@ class UsbIpDevice:
                 )
                 (driver_path / "unbind").write_text(self._busid)
                 await self._bind_usbip_host_driver()
-        else:
+        elif self._sysfs_path.exists():
             await self._bind_usbip_host_driver()
 
     async def _bind_usbip_host_driver(self):
