@@ -35,7 +35,7 @@ tcp.http = { host = "localhost", port = 8080 }
 Now register the place in the board farm. Leave the exporter running and
 continue in a new terminal window.
 ```console
-$ not-my-board export http://127.0.0.1:2092 ./tutorial-tcp-place.toml
+$ not-my-board export http://localhost:2092 ./tutorial-tcp-place.toml
 ```
 
 Before you can reserve and attach the exported place you need to start a
@@ -44,7 +44,7 @@ agent. This usually runs on a different host than the exporter, but as mentioned
 before, you run everything on a single host. Start the agent, leave it running
 and continue in a new terminal window.
 ```console
-$ not-my-board agent http://127.0.0.1:2092
+$ not-my-board agent http://localhost:2092
 ```
 
 Now create a file with the import description. It says "I want a place, which
