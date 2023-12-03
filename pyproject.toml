@@ -54,7 +54,7 @@ test = [
     "pylint-pytest",
     "pytest",
     "pytest-asyncio",
-    "pytest-cov",
+    "coverage",
 ]
 docs = [
     "furo",
@@ -106,3 +106,14 @@ generated-members = [
 
 [tool.isort]
 profile = "black"
+
+[tool.coverage.run]
+branch = true
+parallel = true
+relative_files = true
+
+[tool.coverage.paths]
+source = [
+    ".",
+    "src/",
+]

@@ -1,8 +1,10 @@
 import asyncio
 import collections
 import contextlib
+import io
 import pathlib
 import sys
+import tarfile
 
 import pytest
 
@@ -17,6 +19,7 @@ class _VM:
             await stack.enter_async_context(
                 sh_task(f"./scripts/vmctl run {self._name}", f"vm {self._name}")
             )
+            stack.push_async_callback(self._save_coverage)
 
             self._stack = stack.pop_all()
             await self._stack.__aenter__()
@@ -51,6 +54,13 @@ class _VM:
 
     async def ssh_poll(self, cmd, timeout=None):
         return await sh_poll(f"./scripts/vmctl ssh {self._name} " + cmd, timeout)
+
+    async def _save_coverage(self):
+        await self.ssh("': > .coverage.null'")
+        result = await self.ssh("'tar cf - .coverage*'", encoding=None)
+        tarobj = io.BytesIO(result.stdout)
+        tar = tarfile.open(fileobj=tarobj)
+        tar.extractall()
 
 
 class HubVM(_VM):
@@ -176,7 +186,7 @@ async def test_usb_forwarding(vms):
 ShResult = collections.namedtuple("ShResult", ["stdout", "stderr", "returncode"])
 
 
-async def sh(cmd, check=True, strip=True, prefix=None):
+async def sh(cmd, check=True, strip=True, encoding="utf-8", prefix=None):
     proc = await asyncio.create_subprocess_shell(
         cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
@@ -188,7 +198,8 @@ async def sh(cmd, check=True, strip=True, prefix=None):
     if check and proc.returncode:
         raise RuntimeError(f"{cmd!r} exited with {proc.returncode}")
 
-    stdout = stdout.decode("utf-8")
+    if encoding is not None:
+        stdout = stdout.decode(encoding)
     if strip:
         stdout = stdout.rstrip()
 

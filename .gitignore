@@ -2,3 +2,4 @@
 /scripts/_vmctl/img/
 /dist/
 /doc/_build
+/.coverage*

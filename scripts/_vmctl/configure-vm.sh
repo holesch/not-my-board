@@ -52,6 +52,16 @@ install_project() {
 
     pip install --no-index --find-links ./src/scripts/_vmctl/img/pip-cache --no-build-isolation --config-settings=builddir="$PWD/build" --editable ./src/
     chown -R admin:admin build
+
+    cat > /usr/local/bin/not-my-board << "EOF"
+#!/bin/sh
+exec coverage run \
+    --rcfile=/home/admin/src/pyproject.toml \
+    --data-file=/home/admin/.coverage \
+    --omit='/home/admin/build/*' \
+    /usr/bin/not-my-board "$@"
+EOF
+    chmod +x /usr/local/bin/not-my-board
 }
 
 mount_project_source() {
@@ -72,7 +82,7 @@ reconfigure_device_manager() {
     # add not-my-board hook
     cat >> /etc/mdev.conf << "EOF"
 
-SUBSYSTEM=usb;DEVPATH=.;.* root:root 0600 @not-my-board uevent --verbose "$DEVPATH"
+SUBSYSTEM=usb;DEVPATH=.;.* root:root 0600 @/usr/local/bin/not-my-board uevent --verbose "$DEVPATH"
 EOF
 
     echo > /dev/mdev.seq

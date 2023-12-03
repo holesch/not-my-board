@@ -125,6 +125,7 @@ EOF
         openssh \
         openssh-server-pam \
         pam-rundir \
+        py3-coverage \
         py3-meson-python \
         py3-pip \
         python3 \
@@ -292,7 +293,8 @@ qemu_forward_ssh() {
 }
 
 qemu_virtfs() {
-    set -- "$@" -virtfs local,path=.,mount_tag=vfs,security_model=none,readonly=on
+    set -- "$@" -virtfs "local,path=$projectdir,mount_tag=vfs,security_model=none,readonly=on"
+
     "$@" # launch qemu or append more args
 }
 
