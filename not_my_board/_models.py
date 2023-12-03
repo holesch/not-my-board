@@ -1,4 +1,3 @@
-import ipaddress
 from typing import Dict, List
 
 import pydantic
@@ -47,4 +46,4 @@ class ExportDesc(pydantic.BaseModel):
 
 class Place(ExportDesc):
     id: pydantic.PositiveInt
-    host: ipaddress.IPv4Address
+    host: pydantic.IPvAnyAddress

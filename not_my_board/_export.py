@@ -6,7 +6,6 @@ import datetime
 import email.utils
 import ipaddress
 import logging
-import socket
 
 import h11
 import websockets
@@ -52,9 +51,7 @@ class Exporter:
             )
 
             self._http_server = await stack.enter_async_context(
-                util.Server(
-                    self._handle_client, port=self._place.port, family=socket.AF_INET
-                )
+                util.Server(self._handle_client, port=self._place.port)
             )
 
             url = f"{self._hub_url}/ws-exporter"
@@ -109,7 +106,7 @@ class Exporter:
 
     async def _handle_client(self, reader, writer):
         con = HttpProxyConnection(reader, writer, self._allowed_proxy_targets)
-        host, _ = writer.transport.get_extra_info("peername")
+        host = writer.transport.get_extra_info("peername")[0]
         client_ip = ipaddress.ip_address(host)
 
         if client_ip in self._ip_to_tasks_map:

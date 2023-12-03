@@ -516,16 +516,12 @@ async def _main():
     if args.command == "import":
         while True:
             logger.info("Connecting")
-            reader, writer = await asyncio.open_connection(
-                args.host, args.port, family=socket.AF_INET
-            )
+            reader, writer = await asyncio.open_connection(args.host, args.port)
             await attach(reader, writer, args.busid, args.port_num)
     else:
         device = UsbIpDevice(args.busid)
         async with UsbIpServer([device]) as usbip_server:
-            server = util.Server(
-                usbip_server.handle_client, port=args.port, family=socket.AF_INET
-            )
+            server = util.Server(usbip_server.handle_client, port=args.port)
             async with server:
                 logger.info("listening")
                 await server.serve_forever()
