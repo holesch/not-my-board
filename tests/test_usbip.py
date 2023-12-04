@@ -122,7 +122,7 @@ async def test_raw_usb_forwarding(vms):
             finally:
                 await vms.client.ssh("doas umount /media/usb")
 
-    await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
+    await vms.client.ssh_poll("! test -e /sys/bus/usb/devices/2-1")
 
 
 async def test_usb_forwarding(vms):
