@@ -318,7 +318,7 @@ class UsbTunnel:
 
             try:
                 await asyncio.wait_for(ready_event.wait(), self._ready_timeout)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 logger.warning("%s: Attaching USB device timed out", self._name)
 
             self._stack = stack.pop_all()
