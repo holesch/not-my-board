@@ -411,6 +411,7 @@ def serializable(cls):
     return cls
 
 
+# pylint: disable=invalid-field-call
 def no_init(default):
     return dataclasses.field(default=default, init=False)
 
