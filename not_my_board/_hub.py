@@ -108,10 +108,6 @@ class Place:
         return cls._all_places.values()
 
     @classmethod
-    def get_by_id(cls, id_, default=None):
-        return cls._all_places.get(id_, default)
-
-    @classmethod
     def _new_id(cls):
         id_ = cls._next_id
         cls._next_id += 1
