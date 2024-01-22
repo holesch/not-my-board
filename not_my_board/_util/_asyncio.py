@@ -60,11 +60,13 @@ async def background_task(coro):
 async def cancel_tasks(tasks):
     """Cancel tasks and wait until all are cancelled"""
 
+    canceled_tasks = []
     for task in tasks:
         if not task.done():
             task.cancel()
+            canceled_tasks.append(task)
 
-    for task in tasks:
+    for task in canceled_tasks:
         try:
             await task
         except asyncio.CancelledError:

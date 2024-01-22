@@ -95,7 +95,9 @@ disable = [
 variable-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
 argument-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
 attr-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
-function-rgx = "^_{,2}[a-z][a-z0-9_]{,30}$"
+# allow any length for functions (e.g. test function names can be quite
+# long)
+function-rgx = "^_{,2}[a-z][a-z0-9_]*$"
 # pylint doesn't support lazy_import()
 generated-members = [
     "websockets",
