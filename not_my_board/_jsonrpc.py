@@ -30,13 +30,16 @@ class RemoteError(Exception):
 
 
 class Server:
-    def __init__(self, send, receive_iter, api_obj):
+    def __init__(self, send, receive_iter, api_obj=None):
         super().__init__()
         self._send = send
         self._receive_iter = receive_iter
         self._api_obj = api_obj
         self._tasks = set()
         self._tasks_by_id = {}
+
+    def set_api_object(self, api_obj):
+        self._api_obj = api_obj
 
     async def serve_forever(self):
         try:
