@@ -172,6 +172,12 @@ async def test_usb_forwarding(vms):
                 await vms.client.ssh("not-my-board detach qemu-usb")
                 await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
 
+    # When the exporter is killed, then it should clean up and restore the
+    # default USB driver.
+    result = await vms.exporter.ssh("readlink /sys/bus/usb/devices/2-1/driver")
+    driver_name = pathlib.Path(result.stdout).name
+    assert driver_name == "usb"
+
 
 ShResult = collections.namedtuple("ShResult", ["stdout", "stderr", "returncode"])
 

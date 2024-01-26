@@ -30,6 +30,7 @@ class UsbIpServer:
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:
             for _, device in self._devices.items():
+                stack.callback(device.restore_default_usb_driver)
                 await stack.enter_async_context(
                     util.background_task(_refresh_task(device))
                 )
@@ -175,6 +176,24 @@ class UsbIpDevice:
             await _exec("modprobe", "usbip-host")
         (usbip_host_driver / "match_busid").write_text(f"add {self._busid}")
         (usbip_host_driver / "bind").write_text(self._busid)
+
+    def restore_default_usb_driver(self):
+        driver_path = self._sysfs_path / "driver"
+        if driver_path.exists():
+            driver_name = driver_path.resolve().name
+            if driver_name == "usbip-host":
+                logger.info(
+                    'Unbinding USB device %s from driver "%s"', self._busid, driver_name
+                )
+                (driver_path / "unbind").write_text(self._busid)
+                self._bind_default_usb_driver()
+        elif self._sysfs_path.exists():
+            self._bind_default_usb_driver()
+
+    def _bind_default_usb_driver(self):
+        logger.info("Binding USB device %s to default driver", self._busid)
+        probe_path = pathlib.Path("/sys/bus/usb/drivers_probe")
+        probe_path.write_text(self._busid)
 
     @property
     def busid(self):
@@ -467,12 +486,16 @@ async def _refresh_task(device):
 
     tmp_path = pipe_path.with_name(pipe_path.name + ".new")
     os.mkfifo(tmp_path)
-    tmp_path.replace(pipe_path)
 
-    async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
-        while True:
-            await pipe.read(4096)
-            device.refresh()
+    try:
+        tmp_path.replace(pipe_path)
+
+        async with _open_read_pipe(pipe_path, "r+b", buffering=0) as pipe:
+            while True:
+                await pipe.read(4096)
+                device.refresh()
+    finally:
+        tmp_path.unlink()
 
 
 @contextlib.asynccontextmanager
