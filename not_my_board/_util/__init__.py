@@ -4,6 +4,7 @@ from ._asyncio import (
     background_task,
     cancel_tasks,
     connect,
+    on_error,
     relay_streams,
     run,
     run_concurrently,

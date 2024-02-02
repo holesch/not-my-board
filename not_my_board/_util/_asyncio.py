@@ -74,6 +74,17 @@ async def cancel_tasks(tasks):
 
 
 @contextlib.asynccontextmanager
+async def on_error(callback, /, *args, **kwargs):
+    """Calls a cleanup callback, if an exception is raised within the
+    context manager.
+    """
+    async with contextlib.AsyncExitStack() as stack:
+        stack.push_async_callback(callback, *args, **kwargs)
+        yield
+        stack.pop_all()
+
+
+@contextlib.asynccontextmanager
 async def connect(*args, **kwargs):
     """Wraps `asyncio.open_connection()` in a context manager
 
