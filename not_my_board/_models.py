@@ -46,4 +46,7 @@ class ExportDesc(pydantic.BaseModel):
 
 class Place(ExportDesc):
     id: pydantic.PositiveInt
-    host: pydantic.IPvAnyAddress
+    # host: pydantic.IPvAnyAddress
+    #   can't serialize IP address with json.dumps()
+    #   TODO: maybe drop pydantic as a dependency
+    host: str
