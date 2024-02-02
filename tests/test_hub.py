@@ -34,7 +34,9 @@ class FakeExporter:
             "port": 1234,
             "parts": [
                 {
-                    "compatible": "test-board",
+                    "compatible": [
+                        "test-board",
+                    ],
                     "tcp": {
                         "test-if": {
                             "host": "localhost",
