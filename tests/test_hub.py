@@ -4,6 +4,7 @@ import contextlib
 import pytest
 
 import not_my_board._hub as hubmodule
+import not_my_board._jsonrpc as jsonrpc
 import not_my_board._util as util
 
 DEFAULT_EXPORTER_IP = "3.1.1.1"
@@ -77,35 +78,30 @@ async def test_register_exporter(hub):
     assert len(places["places"]) == 0
 
 
-class FakeAgent:
-    def __init__(self, register_event):
-        self._register_event = register_event
+def fake_rpc_pair():
+    proxy_to_server = asyncio.Queue()
+    server_to_proxy = asyncio.Queue()
 
-    def set_api_object(self, api_obj):
-        self._api_obj = api_obj
-        self._register_event.set()
+    async def receive_iter(queue):
+        while True:
+            data = await queue.get()
+            yield data
+            queue.task_done()
 
-    async def serve_forever(self):
-        # wait forever
-        await asyncio.Event().wait()
-
-    def __getattr__(self, method_name):
-        if method_name.startswith("_"):
-            raise AttributeError(f"invalid attribute '{method_name}'")
-        return getattr(self._api_obj, method_name)
+    server = jsonrpc.Server(server_to_proxy.put, receive_iter(proxy_to_server))
+    proxy = jsonrpc.Proxy(proxy_to_server.put, receive_iter(server_to_proxy))
+    return server, proxy
 
 
 # pylint: disable=redefined-outer-name
 @contextlib.asynccontextmanager
 async def register_agent(hub):
     agent_ip = DEFAULT_AGENT_IP
-    register_event = asyncio.Event()
-    fake_agent = FakeAgent(register_event)
-    coro = hub.agent_communicate(agent_ip, fake_agent)
+    server, proxy = fake_rpc_pair()
+    coro = hub.agent_communicate(agent_ip, server)
     async with util.background_task(coro):
-        async with asyncio.timeout(2):
-            await register_event.wait()
-        yield fake_agent
+        async with util.background_task(proxy.io_loop()):
+            yield proxy
 
 
 async def test_reserve_place(hub):
@@ -121,7 +117,7 @@ async def test_reserve_place(hub):
 async def test_reserve_non_existent(hub):
     async with register_agent(hub) as agent:
         candidate_ids = [42]
-        with pytest.raises(RuntimeError) as execinfo:
+        with pytest.raises(jsonrpc.RemoteError) as execinfo:
             await agent.reserve(candidate_ids)
         assert "None of the candidates exist anymore" in str(execinfo.value)
 
