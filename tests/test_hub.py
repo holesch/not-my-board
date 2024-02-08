@@ -58,11 +58,10 @@ class FakeExporter:
 
 # pylint: disable=redefined-outer-name
 @contextlib.asynccontextmanager
-async def register_exporter(hub):
-    exporter_ip = DEFAULT_EXPORTER_IP
+async def register_exporter(hub, ip=DEFAULT_EXPORTER_IP):
     register_event = asyncio.Event()
     fake_exporter = FakeExporter(register_event)
-    coro = hub.exporter_communicate(exporter_ip, fake_exporter)
+    coro = hub.exporter_communicate(ip, fake_exporter)
     async with util.background_task(coro) as exporter_task:
         async with asyncio.timeout(2):
             await register_event.wait()
@@ -95,10 +94,9 @@ def fake_rpc_pair():
 
 # pylint: disable=redefined-outer-name
 @contextlib.asynccontextmanager
-async def register_agent(hub):
-    agent_ip = DEFAULT_AGENT_IP
+async def register_agent(hub, ip=DEFAULT_AGENT_IP):
     server, proxy = fake_rpc_pair()
-    coro = hub.agent_communicate(agent_ip, server)
+    coro = hub.agent_communicate(ip, server)
     async with util.background_task(coro):
         async with util.background_task(proxy.io_loop()):
             yield proxy
@@ -206,3 +204,18 @@ async def test_return_non_candidate(hub):
                     await agent.return_reservation(candidate_ids[1])
                     # ... then the queued reservation is still active
                     assert not reserve_task.done()
+
+
+async def test_mapped_ip_exporter(hub):
+    async with register_exporter(hub, ip="::FFFF:10.0.0.8"):
+        places = await hub.get_places()
+        assert places["places"][0]["host"] == "10.0.0.8"
+
+
+async def test_mapped_ip_agent(hub):
+    async with register_exporter(hub) as (exporter, _):
+        async with register_agent(hub, ip="::FFFF:10.0.0.9") as agent:
+            places = await hub.get_places()
+            candidate_ids = [places["places"][0]["id"]]
+            await agent.reserve(candidate_ids)
+            assert exporter.allowed_ips == ["10.0.0.9"]

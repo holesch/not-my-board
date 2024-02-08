@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import contextvars
+import ipaddress
 import itertools
 import logging
 import random
@@ -98,7 +99,7 @@ class Hub:
     @contextlib.contextmanager
     def _register_place(self, export_desc, rpc, client_ip):
         id_ = next(self._id_generator)
-        place = models.Place(id=id_, host=client_ip, **export_desc)
+        place = models.Place(id=id_, host=_unmap_ip(client_ip), **export_desc)
 
         try:
             logger.info("New place registered: %d", id_)
@@ -162,7 +163,7 @@ class Hub:
         client_ip = client_ip_var.get()
         async with util.on_error(self.return_reservation, reserved_id):
             rpc = self._exporters[reserved_id]
-            await rpc.set_allowed_ips([client_ip])
+            await rpc.set_allowed_ips([_unmap_ip(client_ip)])
 
         return reserved_id
 
@@ -186,6 +187,13 @@ class Hub:
 
 
 _hub = Hub()
+
+
+def _unmap_ip(ip_str):
+    """Resolve IPv4-mapped-on-IPv6 to an IPv4 address"""
+    ip = ipaddress.ip_address(ip_str)
+    unmapped = getattr(ip, "ipv4_mapped", None) or ip
+    return str(unmapped)
 
 
 class ProtocolError(Exception):
