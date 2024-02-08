@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import ipaddress
 import logging
 import os
 import pathlib
@@ -29,17 +30,18 @@ class Agent:
         self._hub_url = hub_url
         self._reserved_places = {}
         self._pending = set()
+        url = urllib.parse.urlsplit(hub_url)
+        ws_scheme = "ws" if url.scheme == "http" else "wss"
+        self._ws_uri = f"{ws_scheme}://{url.netloc}/ws-agent"
+        self._hub_host = url.netloc.split(":")[0]
 
     async def __aenter__(self):
         runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
 
         async with contextlib.AsyncExitStack() as stack:
-            url = urllib.parse.urlsplit(self._hub_url)
-            ws_scheme = "ws" if url.scheme == "http" else "wss"
-            uri = f"{ws_scheme}://{url.netloc}/ws-agent"
             headers = {"Authorization": "Bearer dummy-token-1"}
             ws = await stack.enter_async_context(
-                websockets.connect(uri, extra_headers=headers)
+                websockets.connect(self._ws_uri, extra_headers=headers)
             )
 
             async def receive_iter():
@@ -102,7 +104,7 @@ class Agent:
             response = await http.get_json(f"{self._hub_url}/api/v1/places")
             places = [models.Place(**p) for p in response["places"]]
 
-            candidates = _filter_places(import_description, places)
+            candidates = self._filter_places(import_description, places)
             candidate_ids = list(candidates)
             if not candidate_ids:
                 raise RuntimeError("No matching place found")
@@ -160,23 +162,29 @@ class Agent:
             for status in place.status
         ]
 
+    def _filter_places(self, import_description, places):
+        reserved_places = {}
 
-def _filter_places(import_description, places):
-    reserved_places = {}
+        imported_part_sets = [
+            (name, _part_to_set(imported_part))
+            for name, imported_part in import_description.parts.items()
+        ]
 
-    imported_part_sets = [
-        (name, _part_to_set(imported_part))
-        for name, imported_part in import_description.parts.items()
-    ]
+        for place in places:
+            matching = _find_matching(imported_part_sets, place)
+            if matching:
+                real_host = self._real_host(place.host)
+                reserved_places[place.id] = ReservedPlace(
+                    import_description, place, real_host, matching
+                )
 
-    for place in places:
-        matching = _find_matching(imported_part_sets, place)
-        if matching:
-            reserved_places[place.id] = ReservedPlace(
-                import_description, place, matching
-            )
+        return reserved_places
 
-    return reserved_places
+    def _real_host(self, host):
+        if ipaddress.ip_address(host).is_loopback:
+            logger.info("Replacing %s with %s", host, self._hub_host)
+            return self._hub_host
+        return host
 
 
 def _find_matching(imported_part_sets, place):
@@ -215,13 +223,13 @@ def _part_to_set(part):
 
 
 class ReservedPlace:
-    def __init__(self, import_description, place, matching):
+    def __init__(self, import_description, place, real_host, matching):
         self._import_description = import_description
         self._place = place
         self._tunnels = []
         self._stack = None
         self.lock = asyncio.Lock()
-        proxy = str(place.host), place.port
+        proxy = real_host, place.port
 
         for name, place_part_idx in matching:
             imported_part = import_description.parts[name]
