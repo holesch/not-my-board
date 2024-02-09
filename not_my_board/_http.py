@@ -14,6 +14,16 @@ class ProtocolError(Exception):
 
 
 async def get_json(url):
+    return await _request_json("GET", url)
+
+
+async def post_form(url, params):
+    content_type = "application/x-www-form-urlencoded"
+    body = urllib.parse.urlencode(params).encode()
+    return await _request_json("POST", url, content_type, body)
+
+
+async def _request_json(method, url, content_type=None, body=None):
     url = urllib.parse.urlsplit(url)
     headers = [
         ("Host", url.netloc),
@@ -21,11 +31,20 @@ async def get_json(url):
         ("Accept", "application/json"),
         ("Connection", "close"),
     ]
+    if body is not None:
+        headers += [
+            ("Content-Type", content_type),
+            ("Content-Length", str(len(body))),
+        ]
 
     conn = h11.Connection(our_role=h11.CLIENT)
+
     to_send = conn.send(
-        h11.Request(method="GET", target=url.path or "/", headers=headers)
+        h11.Request(method=method, target=url.path or "/", headers=headers)
     )
+    if body is not None:
+        to_send += conn.send(h11.Data(body))
+    to_send += conn.send(h11.EndOfMessage())
 
     if url.scheme == "https":
         default_port = 443
@@ -40,7 +59,6 @@ async def get_json(url):
 
     async with util.connect(url.hostname, port, ssl=ssl) as (reader, writer):
         writer.write(to_send)
-        writer.write(conn.send(h11.EndOfMessage()))
         await writer.drain()
 
         async def receive_all():
