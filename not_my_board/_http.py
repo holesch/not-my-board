@@ -44,19 +44,27 @@ async def get_json(url):
         await writer.drain()
 
         async def receive_all():
+            error_status = None
             while True:
                 event = conn.next_event()
                 if event is h11.NEED_DATA:
                     conn.receive_data(await reader.read(4096))
                 elif isinstance(event, h11.Response):
                     if event.status_code != 200:
-                        raise ProtocolError(
-                            f"Expected status code 200, got {event.status_code}"
-                        )
+                        error_status = event.status_code
+                        error_data = b""
                 elif isinstance(event, h11.Data):
-                    yield event.data
+                    if error_status is None:
+                        yield event.data
+                    else:
+                        error_data += event.data
                 elif isinstance(event, (h11.EndOfMessage, h11.PAUSED)):
                     break
+
+            if error_status is not None:
+                raise ProtocolError(
+                    f"Expected status code 200, got {error_status}: {error_data}"
+                )
 
         content = b"".join([data async for data in receive_all()])
 
