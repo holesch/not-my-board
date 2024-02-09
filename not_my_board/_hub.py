@@ -27,17 +27,24 @@ def hub():
 
 @asgineer.to_asgi
 async def asgi_app(request):
+    response = (404, {}, "Page not found")
+
     if isinstance(request, asgineer.WebsocketRequest):
         if request.path == "/ws-agent":
-            return await _handle_agent(request)
+            await _handle_agent(request)
         elif request.path == "/ws-exporter":
-            return await _handle_exporter(request)
-        await request.close()
-        return
+            await _handle_exporter(request)
+        elif request.path == "/ws-login":
+            await _handle_login(request)
+        else:
+            await request.close()
+        response = None
     elif isinstance(request, asgineer.HttpRequest):
         if request.path == "/api/v1/places":
-            return await _hub.get_places()
-    return 404, {}, "Page not found"
+            response = await _hub.get_places()
+        elif request.path == "/oidc-callback":
+            response = await _hub.oidc_callback(request.querydict)
+    return response
 
 
 async def _handle_agent(ws):
@@ -52,6 +59,13 @@ async def _handle_exporter(ws):
     client_ip = ws.scope["client"][0]
     exporter = jsonrpc.Channel(ws.send, ws.receive_iter())
     await _hub.exporter_communicate(client_ip, exporter)
+
+
+async def _handle_login(ws):
+    await ws.accept()
+    client_ip = ws.scope["client"][0]
+    channel = jsonrpc.Channel(ws.send, ws.receive_iter())
+    await _hub.login_communicate(client_ip, channel)
 
 
 async def _authorize_ws(ws):
@@ -76,6 +90,7 @@ class Hub:
     _available = set()
     _wait_queue = []
     _reservations = {}
+    _pending_callbacks = {}
 
     def __init__(self):
         self._id_generator = itertools.count(start=1)
@@ -98,6 +113,12 @@ class Hub:
             export_desc = await rpc.get_place()
             with self._register_place(export_desc, rpc, client_ip):
                 await com_task
+
+    @jsonrpc.hidden
+    async def login_communicate(self, client_ip, rpc):
+        client_ip_var.set(client_ip)
+        rpc.set_api_object(self)
+        await rpc.communicate_forever()
 
     @contextlib.contextmanager
     def _register_place(self, export_desc, rpc, client_ip):
@@ -187,6 +208,24 @@ class Hub:
                 await rpc.set_allowed_ips([])
         else:
             logger.info("Place returned, but it doesn't exist: %d", place_id)
+
+    async def get_authentication_response(self, state):
+        future = asyncio.get_running_loop().create_future()
+        self._pending_callbacks[state] = future
+        try:
+            channel = jsonrpc.get_current_channel()
+            await channel.oidc_callback_registered(_notification=True)
+            return await future
+        finally:
+            del self._pending_callbacks[state]
+
+    @jsonrpc.hidden
+    async def oidc_callback(self, query):
+        future = self._pending_callbacks[query["state"]]
+        if not future.done():
+            future.set_result(query)
+
+        return "Continue in not-my-board CLI"
 
 
 _hub = Hub()

@@ -5,6 +5,7 @@ import logging
 import pathlib
 import sys
 
+import not_my_board._auth as auth
 import not_my_board._client as client
 import not_my_board._util as util
 from not_my_board._agent import agent
@@ -104,6 +105,10 @@ def main():
     add_verbose_arg(subparser)
     subparser.add_argument("devpath", help="devpath attribute of uevent")
 
+    subparser = add_subcommand("login", help="Log in to a hub")
+    add_verbose_arg(subparser)
+    subparser.add_argument("hub_url", help="http(s) URL of the hub")
+
     args = parser.parse_args()
 
     # Don't use escape sequences, if stdout is not a tty
@@ -194,6 +199,13 @@ async def _status_command(args):
 
 async def _uevent_command(args):
     await client.uevent(args.devpath)
+
+
+async def _login_command(args):
+    async with auth.LoginFlow(args.hub_url) as login:
+        print(login.login_url)
+        await login.finish()
+        print("Login was successful")
 
 
 class Format:

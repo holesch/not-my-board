@@ -29,6 +29,7 @@ dependencies = [
     "asgineer",
     "h11",
     "pydantic ~= 1.10",
+    "pyjwt[crypto]",
     "tomli; python_version < '3.11'",
     "typing_extensions; python_version < '3.9'",
     "uvicorn",
