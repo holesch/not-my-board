@@ -57,7 +57,7 @@ class Exporter:
             url = f"{self._hub_url}/ws-exporter"
             auth = "Bearer dummy-token-1"
             self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
-            self._ws_server = jsonrpc.Server(self._ws.send, self._receive_iter(), self)
+            self._ws_server = jsonrpc.Channel(self._ws.send, self._receive_iter(), self)
 
             self._stack = stack.pop_all()
             await self._stack.__aenter__()
@@ -69,7 +69,7 @@ class Exporter:
     # TODO: hide from JSON-RPC interface
     async def serve_forever(self):
         await util.run_concurrently(
-            self._http_server.serve_forever(), self._ws_server.serve_forever()
+            self._http_server.serve_forever(), self._ws_server.communicate_forever()
         )
 
     async def _receive_iter(self):

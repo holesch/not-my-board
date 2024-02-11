@@ -50,10 +50,6 @@ class Channel:
                     future.set_exception(RuntimeError("Connection closed"))
             await util.cancel_tasks(self._tasks.copy())
 
-    # TODO remove aliases
-    io_loop = communicate_forever
-    serve_forever = communicate_forever
-
     async def __aenter__(self):
         # TODO use util.background_task()
         self._task = asyncio.create_task(self.communicate_forever())
@@ -192,11 +188,6 @@ class Channel:
 
         # don't request to cancel the cancellation if this task is canceled
         await self._send_request(request, send_cancellation=False)
-
-
-# TODO remove aliases
-Server = Channel
-Proxy = Channel
 
 
 def _parse_message(raw_data, info):

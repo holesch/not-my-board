@@ -51,7 +51,7 @@ class Agent:
                 except websockets.ConnectionClosedOK:
                     pass
 
-            self._hub_proxy = jsonrpc.Proxy(ws.send, receive_iter())
+            self._hub = jsonrpc.Channel(ws.send, receive_iter())
 
             stack.push_async_callback(self._cleanup)
 
@@ -74,7 +74,7 @@ class Agent:
     # TODO: hide from JSON-RPC interface
     async def serve_forever(self):
         await util.run_concurrently(
-            self._unix_server.serve_forever(), self._hub_proxy.io_loop()
+            self._unix_server.serve_forever(), self._hub.communicate_forever()
         )
 
     async def _handle_client(self, reader, writer):
@@ -82,8 +82,8 @@ class Agent:
             writer.write(data + b"\n")
             await writer.drain()
 
-        socket_server = jsonrpc.Server(send, reader, self)
-        await socket_server.serve_forever()
+        socket_channel = jsonrpc.Channel(send, reader, self)
+        await socket_channel.communicate_forever()
 
     async def reserve(self, name, import_description_file):
         if name in self._reserved_places:
@@ -109,7 +109,7 @@ class Agent:
             if not candidate_ids:
                 raise RuntimeError("No matching place found")
 
-            place_id = await self._hub_proxy.reserve(candidate_ids)
+            place_id = await self._hub.reserve(candidate_ids)
 
             assert name not in self._reserved_places
             self._reserved_places[name] = candidates[place_id]
@@ -123,7 +123,7 @@ class Agent:
                     await reserved_place.detach()
                 else:
                     raise RuntimeError(f'Place "{name}" is still attached')
-            await self._hub_proxy.return_reservation(reserved_place.id)
+            await self._hub.return_reservation(reserved_place.id)
             del self._reserved_places[name]
 
     async def attach(self, name):

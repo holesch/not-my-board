@@ -43,14 +43,14 @@ async def asgi_app(request):
 async def _handle_agent(ws):
     await _authorize_ws(ws)
     client_ip = ws.scope["client"][0]
-    server = jsonrpc.Server(ws.send, ws.receive_iter())
+    server = jsonrpc.Channel(ws.send, ws.receive_iter())
     await _hub.agent_communicate(client_ip, server)
 
 
 async def _handle_exporter(ws):
     await _authorize_ws(ws)
     client_ip = ws.scope["client"][0]
-    exporter = jsonrpc.Proxy(ws.send, ws.receive_iter())
+    exporter = jsonrpc.Channel(ws.send, ws.receive_iter())
     await _hub.exporter_communicate(client_ip, exporter)
 
 
@@ -87,14 +87,14 @@ class Hub:
         client_ip_var.set(client_ip)
         async with self._register_agent():
             rpc.set_api_object(self)
-            await rpc.serve_forever()
+            await rpc.communicate_forever()
 
     async def exporter_communicate(self, client_ip, rpc):
         client_ip_var.set(client_ip)
-        async with util.background_task(rpc.io_loop()) as io_loop:
+        async with util.background_task(rpc.communicate_forever()) as com_task:
             export_desc = await rpc.get_place()
             with self._register_place(export_desc, rpc, client_ip):
-                await io_loop
+                await com_task
 
     @contextlib.contextmanager
     def _register_place(self, export_desc, rpc, client_ip):

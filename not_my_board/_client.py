@@ -13,51 +13,51 @@ async def reserve(import_description, with_name=None):
     import_description_file = _find_import_description(import_description)
     reservation_name = import_description_file.stem if not with_name else with_name
 
-    async with agent_proxy() as proxy:
-        await proxy.reserve(reservation_name, import_description_file.as_posix())
+    async with agent_channel() as agent:
+        await agent.reserve(reservation_name, import_description_file.as_posix())
 
 
 async def return_reservation(name):
-    async with agent_proxy() as proxy:
-        await proxy.return_reservation(name)
+    async with agent_channel() as agent:
+        await agent.return_reservation(name)
 
 
 async def attach(name, keep_others=False):
-    async with agent_proxy() as proxy:
-        reserved_names = {e["place"] for e in await proxy.list()}
+    async with agent_channel() as agent:
+        reserved_names = {e["place"] for e in await agent.list()}
         if name in reserved_names:
-            await proxy.attach(name)
+            await agent.attach(name)
 
             others = reserved_names - {name}
             if not keep_others and others:
                 for other in others:
-                    await proxy.return_reservation(name=other, force=True)
+                    await agent.return_reservation(name=other, force=True)
         else:
             import_description_file = _find_import_description(name)
             reservation_name = import_description_file.stem
-            await proxy.reserve(reservation_name, import_description_file.as_posix())
-            await proxy.attach(reservation_name)
+            await agent.reserve(reservation_name, import_description_file.as_posix())
+            await agent.attach(reservation_name)
 
             if not keep_others and reserved_names:
                 for other in reserved_names:
-                    await proxy.return_reservation(name=other, force=True)
+                    await agent.return_reservation(name=other, force=True)
 
 
 async def detach(name, keep=False):
-    async with agent_proxy() as proxy:
-        await proxy.detach(name)
+    async with agent_channel() as agent:
+        await agent.detach(name)
         if not keep:
-            await proxy.return_reservation(name)
+            await agent.return_reservation(name)
 
 
 async def list_():
-    async with agent_proxy() as proxy:
-        return await proxy.list()
+    async with agent_channel() as agent:
+        return await agent.list()
 
 
 async def status():
-    async with agent_proxy() as proxy:
-        return await proxy.status()
+    async with agent_channel() as agent:
+        return await agent.status()
 
 
 async def uevent(devpath):
@@ -105,7 +105,7 @@ def _find_import_description(name):
 
 
 @contextlib.asynccontextmanager
-async def agent_proxy():
+async def agent_channel():
     runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
     reader, writer = await asyncio.open_unix_connection(
         runtime_dir / "not-my-board.sock"
@@ -115,5 +115,5 @@ async def agent_proxy():
         writer.write(data + b"\n")
         await writer.drain()
 
-    async with jsonrpc.Proxy(send, reader) as proxy:
-        yield proxy
+    async with jsonrpc.Channel(send, reader) as channel:
+        yield channel

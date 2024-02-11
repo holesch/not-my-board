@@ -25,7 +25,7 @@ class FakeExporter:
     def __init__(self, register_event):
         self._register_event = register_event
 
-    async def io_loop(self):
+    async def communicate_forever(self):
         # wait forever
         await asyncio.Event().wait()
 
@@ -78,8 +78,8 @@ async def test_register_exporter(hub):
 
 
 def fake_rpc_pair():
-    proxy_to_server = asyncio.Queue()
-    server_to_proxy = asyncio.Queue()
+    rpc1_to_rpc2 = asyncio.Queue()
+    rpc2_to_rpc1 = asyncio.Queue()
 
     async def receive_iter(queue):
         while True:
@@ -87,19 +87,19 @@ def fake_rpc_pair():
             yield data
             queue.task_done()
 
-    server = jsonrpc.Server(server_to_proxy.put, receive_iter(proxy_to_server))
-    proxy = jsonrpc.Proxy(proxy_to_server.put, receive_iter(server_to_proxy))
-    return server, proxy
+    rpc1 = jsonrpc.Channel(rpc1_to_rpc2.put, receive_iter(rpc2_to_rpc1))
+    rpc2 = jsonrpc.Channel(rpc2_to_rpc1.put, receive_iter(rpc1_to_rpc2))
+    return rpc1, rpc2
 
 
 # pylint: disable=redefined-outer-name
 @contextlib.asynccontextmanager
 async def register_agent(hub, ip=DEFAULT_AGENT_IP):
-    server, proxy = fake_rpc_pair()
-    coro = hub.agent_communicate(ip, server)
+    rpc1, rpc2 = fake_rpc_pair()
+    coro = hub.agent_communicate(ip, rpc2)
     async with util.background_task(coro):
-        async with util.background_task(proxy.io_loop()):
-            yield proxy
+        async with util.background_task(rpc1.communicate_forever()):
+            yield rpc1
 
 
 async def test_reserve_place(hub):
