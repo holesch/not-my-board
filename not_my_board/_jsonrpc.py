@@ -131,7 +131,7 @@ class Channel:
                 response = ErrorResponse.with_traceback(request.id, code, message)
                 await self._send(bytes(response))
             else:
-                raise
+                traceback.print_exc()
 
     async def _cancel_local(self, id_):
         if id_ in self._request_tasks_by_id:
@@ -153,7 +153,7 @@ class Channel:
 
     async def _call(self, method_name, *args, **kwargs):
         if not self._is_receiving:
-            raise RuntimeError("IO loop is not running, can't receive responses")
+            raise RuntimeError("Channel communication is already closed")
 
         if kwargs.pop("_notification", False):
             id_ = None
