@@ -21,6 +21,25 @@ CODE_METHOD_NOT_FOUND = -32601
 
 
 class Channel:
+    """Send and receive remote procedure calls with JSON RPC
+
+    `send` is an async function that takes messages (bytes) and sends it over
+    the wire.
+    `receive_iter` is an async iterator, that yields messages (bytes) whenever
+    they are available.
+    The `api_obj` is used to handle incoming calls. If it has a coroutine with
+    a name, that matches with the received method request, then it is called.
+    The return value is sent as a response. If the method throws an exception,
+    then an error with the traceback is sent to the remote caller.
+
+    To call methods on the remote side, just call a coroutine method with the
+    same name on the channel object. The call is automatically converted into a
+    remote procedure call. It waits for the result and converts it to a return
+    value. If an error is returned, then it is converted back into an
+    exception. If the call is canceled, then the remote execution is also
+    canceled.
+    """
+
     def __init__(self, send, receive_iter, api_obj=None):
         self._send = send
         self._receive_iter = receive_iter
@@ -34,9 +53,11 @@ class Channel:
         self._is_receiving = True
 
     def set_api_object(self, api_obj):
+        """Set the API object, that is used to handle incoming calls."""
         self._api_obj = api_obj
 
     async def communicate_forever(self):
+        """This function needs to run in a task, while the channel is used"""
         try:
             async for raw_data in self._receive_iter:
                 try:
