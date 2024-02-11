@@ -495,7 +495,7 @@ async def _refresh_task(device):
                 await pipe.read(4096)
                 device.refresh()
     finally:
-        tmp_path.unlink()
+        pipe_path.unlink()
 
 
 @contextlib.asynccontextmanager
