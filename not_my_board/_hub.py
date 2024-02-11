@@ -80,15 +80,18 @@ class Hub:
     def __init__(self):
         self._id_generator = itertools.count(start=1)
 
+    @jsonrpc.hidden
     async def get_places(self):
         return {"places": [p.dict() for p in self._places.values()]}
 
+    @jsonrpc.hidden
     async def agent_communicate(self, client_ip, rpc):
         client_ip_var.set(client_ip)
         async with self._register_agent():
             rpc.set_api_object(self)
             await rpc.communicate_forever()
 
+    @jsonrpc.hidden
     async def exporter_communicate(self, client_ip, rpc):
         client_ip_var.set(client_ip)
         async with util.background_task(rpc.communicate_forever()) as com_task:

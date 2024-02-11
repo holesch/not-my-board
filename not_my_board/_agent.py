@@ -71,7 +71,7 @@ class Agent:
             if place.is_attached:
                 await place.detach()
 
-    # TODO: hide from JSON-RPC interface
+    @jsonrpc.hidden
     async def serve_forever(self):
         await util.run_concurrently(
             self._unix_server.serve_forever(), self._hub.communicate_forever()

@@ -32,6 +32,10 @@ class FakeApi:
     async def say_hello(self, name):
         return f"Hello, {name}!"
 
+    @jsonrpc.hidden
+    async def hidden(self):
+        return "secret"
+
 
 class FakeApi2:
     async def new_func(self):
@@ -151,6 +155,14 @@ async def test_cancel_execution_invalid_id(fakes):
 
 async def test_prevent_hidden_function_execution(fakes):
     await fakes.transport.send_to_jsonrpc(id=84, method="_hidden")
+
+    # call should fail
+    message = await fakes.transport.receive_from_jsonrpc()
+    assert message["error"]["message"] == "Method not found"
+
+
+async def test_prevent_marked_hidden_function_execution(fakes):
+    await fakes.transport.send_to_jsonrpc(id=84, method="hidden")
 
     # call should fail
     message = await fakes.transport.receive_from_jsonrpc()

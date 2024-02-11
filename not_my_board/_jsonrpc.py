@@ -106,6 +106,10 @@ class Channel:
                     raise ProtocolError(f'method "{request.method}" not allowed')
 
                 method = getattr(self._api_obj, request.method)
+
+                if getattr(method, "_jsonrpc_hidden", False):
+                    raise ProtocolError(f'method "{request.method}" is marked hidden')
+
                 logger.info("Method call: %s", request.method)
 
             next_error = CODE_INTERNAL_ERROR, None
@@ -188,6 +192,18 @@ class Channel:
 
         # don't request to cancel the cancellation if this task is canceled
         await self._send_request(request, send_cancellation=False)
+
+
+def hidden(func):
+    """Decorator to mark a function as hidden.
+
+    Hidden functions can't be called by the remote. Use this if you want to
+    keep it public for local users, otherwise just use a leading underscore in
+    the method name.
+    """
+    # pylint: disable=protected-access
+    func._jsonrpc_hidden = True
+    return func
 
 
 def _parse_message(raw_data, info):

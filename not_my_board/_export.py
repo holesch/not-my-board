@@ -66,7 +66,7 @@ class Exporter:
     async def __aexit__(self, exc_type, exc, tb):
         await self._stack.__aexit__(exc_type, exc, tb)
 
-    # TODO: hide from JSON-RPC interface
+    @jsonrpc.hidden
     async def serve_forever(self):
         await util.run_concurrently(
             self._http_server.serve_forever(), self._ws_server.communicate_forever()
