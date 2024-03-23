@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import fcntl
 import signal
 import traceback
 
@@ -196,3 +197,15 @@ class ContextStack:
 
     async def __aexit__(self, exc_type, exc, tb):
         await self._stack.__aexit__(exc_type, exc, tb)
+
+
+@contextlib.asynccontextmanager
+async def flock(f):
+    """File lock as a context manager"""
+
+    loop = asyncio.get_running_loop()
+    try:
+        await loop.run_in_executor(None, fcntl.flock, f.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(f, fcntl.LOCK_UN)
