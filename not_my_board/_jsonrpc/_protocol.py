@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import contextvars
 import dataclasses
 import functools
 import itertools
@@ -13,6 +14,7 @@ from typing import Any, Optional, Union
 import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
+channel_var = contextvars.ContextVar("channel")
 
 
 CODE_INTERNAL_ERROR = -32603
@@ -20,7 +22,7 @@ CODE_INVALID_REQUEST = -32600
 CODE_METHOD_NOT_FOUND = -32601
 
 
-class Channel:
+class Channel(util.ContextStack):
     """Send and receive remote procedure calls with JSON RPC
 
     `send` is an async function that takes messages (bytes) and sends it over
@@ -58,6 +60,7 @@ class Channel:
 
     async def communicate_forever(self):
         """This function needs to run in a task, while the channel is used"""
+        channel_var.set(self)
         try:
             async for raw_data in self._receive_iter:
                 try:
@@ -71,17 +74,9 @@ class Channel:
                     future.set_exception(RuntimeError("Connection closed"))
             await util.cancel_tasks(self._tasks.copy())
 
-    async def __aenter__(self):
-        # TODO use util.background_task()
-        self._task = asyncio.create_task(self.communicate_forever())
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        self._task.cancel()
-        try:
-            await self._task
-        except asyncio.CancelledError:
-            pass
+    async def _context_stack(self, stack):
+        coro = util.background_task(self.communicate_forever())
+        await stack.enter_async_context(coro)
 
     def __getattr__(self, method_name):
         if method_name.startswith("_"):
@@ -225,6 +220,10 @@ def hidden(func):
     # pylint: disable=protected-access
     func._jsonrpc_hidden = True
     return func
+
+
+def get_current_channel():
+    return channel_var.get()
 
 
 def _parse_message(raw_data, info):

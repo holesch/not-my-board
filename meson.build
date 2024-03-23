@@ -14,7 +14,6 @@ py.install_sources(
   'not_my_board/_client.py',
   'not_my_board/_export.py',
   'not_my_board/_http.py',
-  'not_my_board/_jsonrpc.py',
   'not_my_board/_models.py',
   'not_my_board/_hub.py',
   'not_my_board/_usbip.py',
@@ -27,6 +26,13 @@ py.install_sources(
   'not_my_board/_util/_matching.py',
   'not_my_board/_util/_misc.py',
   subdir: 'not_my_board/_util',
+)
+
+py.install_sources(
+  'not_my_board/_jsonrpc/__init__.py',
+  'not_my_board/_jsonrpc/_protocol.py',
+  'not_my_board/_jsonrpc/_websocket.py',
+  subdir: 'not_my_board/_jsonrpc',
 )
 
 py.install_sources(
