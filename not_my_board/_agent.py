@@ -9,8 +9,6 @@ import pathlib
 import traceback
 import urllib.parse
 
-import websockets
-
 import not_my_board._http as http
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
@@ -38,19 +36,10 @@ class Agent(util.ContextStack):
     async def _context_stack(self, stack):
         runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
 
-        headers = {"Authorization": "Bearer dummy-token-1"}
-        ws = await stack.enter_async_context(
-            websockets.connect(self._ws_uri, extra_headers=headers)
+        auth = "Bearer dummy-token-1"
+        self._hub = await stack.enter_async_context(
+            jsonrpc.WebsocketChannel(self._ws_uri, start=False, auth=auth)
         )
-
-        async def receive_iter():
-            try:
-                while True:
-                    yield await ws.recv()
-            except websockets.ConnectionClosedOK:
-                pass
-
-        self._hub = jsonrpc.Channel(ws.send, receive_iter())
 
         stack.push_async_callback(self._cleanup)
 

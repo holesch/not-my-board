@@ -24,7 +24,6 @@ py.install_sources(
   'not_my_board/_util/__init__.py',
   'not_my_board/_util/_asyncio.py',
   'not_my_board/_util/_matching.py',
-  'not_my_board/_util/_misc.py',
   subdir: 'not_my_board/_util',
 )
 

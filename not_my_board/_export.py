@@ -7,7 +7,6 @@ import ipaddress
 import logging
 
 import h11
-import websockets
 
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
@@ -54,21 +53,15 @@ class Exporter(util.ContextStack):
 
         url = f"{self._hub_url}/ws-exporter"
         auth = "Bearer dummy-token-1"
-        self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
-        self._ws_server = jsonrpc.Channel(self._ws.send, self._receive_iter(), self)
+        self._ws_server = await stack.enter_async_context(
+            jsonrpc.WebsocketChannel(url, start=False, auth=auth, api_obj=self)
+        )
 
     @jsonrpc.hidden
     async def serve_forever(self):
         await util.run_concurrently(
             self._http_server.serve_forever(), self._ws_server.communicate_forever()
         )
-
-    async def _receive_iter(self):
-        try:
-            while True:
-                yield await self._ws.recv()
-        except websockets.ConnectionClosedOK:
-            pass
 
     async def get_place(self):
         return self._place.dict()
