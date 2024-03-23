@@ -173,3 +173,26 @@ class UnixServer(Server):
         return await asyncio.start_unix_server(
             self._on_connect, *self._args, **self._kwargs
         )
+
+
+class ContextStack:
+    """Mix-in class to simplify implementing a context manager
+
+    Child classes can implement the _context_stack() function, instead of
+    __aenter__() and __aexit__(). _context_stack() is called when entering the
+    context. It needs to to build up an AsyncExitStack(), that is passed as an
+    argument, which is then cleaned up when exiting the context.
+    """
+
+    async def _context_stack(self, stack):
+        raise NotImplementedError()
+
+    async def __aenter__(self):
+        async with contextlib.AsyncExitStack() as stack:
+            await self._context_stack(stack)
+            self._stack = stack.pop_all()
+            await self._stack.__aenter__()
+            return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._stack.__aexit__(exc_type, exc, tb)
