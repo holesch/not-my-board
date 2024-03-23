@@ -9,21 +9,13 @@ import pytest
 import not_my_board._util as util
 
 
-class _VM:
+class _VM(util.ContextStack):
     _name = ""
 
-    async def __aenter__(self):
-        async with contextlib.AsyncExitStack() as stack:
-            await stack.enter_async_context(
-                sh_task(f"./scripts/vmctl run {self._name}", f"vm {self._name}")
-            )
-
-            self._stack = stack.pop_all()
-            await self._stack.__aenter__()
-            return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._stack.__aexit__(exc_type, exc, tb)
+    async def _context_stack(self, stack):
+        await stack.enter_async_context(
+            sh_task(f"./scripts/vmctl run {self._name}", f"vm {self._name}")
+        )
 
     async def configure(self):
         await sh(

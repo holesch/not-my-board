@@ -23,24 +23,14 @@ logger = logging.getLogger(__name__)
 _vhci_status_attached = {}
 
 
-class UsbIpServer:
+class UsbIpServer(util.ContextStack):
     def __init__(self, devices):
         self._devices = {d.busid: d for d in devices}
 
-    async def __aenter__(self):
-        async with contextlib.AsyncExitStack() as stack:
-            for _, device in self._devices.items():
-                stack.callback(device.restore_default_usb_driver)
-                await stack.enter_async_context(
-                    util.background_task(_refresh_task(device))
-                )
-
-            self._stack = stack.pop_all()
-            await self._stack.__aenter__()
-            return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._stack.__aexit__(exc_type, exc, tb)
+    async def _context_stack(self, stack):
+        for _, device in self._devices.items():
+            stack.callback(device.restore_default_usb_driver)
+            await stack.enter_async_context(util.background_task(_refresh_task(device)))
 
     async def handle_client(self, reader, writer):
         sock = writer.transport.get_extra_info("socket")
@@ -95,7 +85,7 @@ class _SysfsFileHex(_SysfsFileInt):
         super().__init__(16, default)
 
 
-class UsbIpDevice:
+class UsbIpDevice(util.ContextStack):
     def __init__(self, busid):
         self._busid = busid
         self._sysfs_path = pathlib.Path("/sys/bus/usb/devices/") / busid
@@ -106,16 +96,13 @@ class UsbIpDevice:
     def refresh(self):
         self._refresh_event.set()
 
-    async def __aenter__(self):
+    async def _context_stack(self, stack):
         async with contextlib.AsyncExitStack() as stack:
             await stack.enter_async_context(self._lock)
             await self.available()
+            stack.callback(self.stop_export)
 
-            self._stack = stack.pop_all()
-            await self._stack.__aenter__()
-            return self
-
-    async def __aexit__(self, exc_type, exc, tb):
+    def stop_export(self):
         if self._is_exported:
             try:
                 (self._sysfs_path / "usbip_sockfd").write_text("-1\n")
@@ -124,8 +111,6 @@ class UsbIpDevice:
                 pass
             except Exception as e:
                 logger.warning("Error while stopping export: %s", e)
-
-        await self._stack.__aexit__(exc_type, exc, tb)
 
     async def available(self):
         while True:

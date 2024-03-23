@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import asyncio
-import contextlib
 import datetime
 import email.utils
 import ipaddress
@@ -23,7 +22,7 @@ async def export(hub_url, place):
         await exporter.serve_forever()
 
 
-class Exporter:
+class Exporter(util.ContextStack):
     def __init__(self, hub_url, export_desc_path):
         self._hub_url = hub_url
         self._ip_to_tasks_map = {}
@@ -44,27 +43,19 @@ class Exporter:
             for _, usb in part.usb.items()
         ]
 
-    async def __aenter__(self):
-        async with contextlib.AsyncExitStack() as stack:
-            self._usbip_server = await stack.enter_async_context(
-                usbip.UsbIpServer(self._usbip_devices)
-            )
+    async def _context_stack(self, stack):
+        self._usbip_server = await stack.enter_async_context(
+            usbip.UsbIpServer(self._usbip_devices)
+        )
 
-            self._http_server = await stack.enter_async_context(
-                util.Server(self._handle_client, port=self._place.port)
-            )
+        self._http_server = await stack.enter_async_context(
+            util.Server(self._handle_client, port=self._place.port)
+        )
 
-            url = f"{self._hub_url}/ws-exporter"
-            auth = "Bearer dummy-token-1"
-            self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
-            self._ws_server = jsonrpc.Channel(self._ws.send, self._receive_iter(), self)
-
-            self._stack = stack.pop_all()
-            await self._stack.__aenter__()
-            return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._stack.__aexit__(exc_type, exc, tb)
+        url = f"{self._hub_url}/ws-exporter"
+        auth = "Bearer dummy-token-1"
+        self._ws = await stack.enter_async_context(util.ws_connect(url, auth))
+        self._ws_server = jsonrpc.Channel(self._ws.send, self._receive_iter(), self)
 
     @jsonrpc.hidden
     async def serve_forever(self):

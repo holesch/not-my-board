@@ -25,7 +25,7 @@ async def agent(hub_url):
         await a.serve_forever()
 
 
-class Agent:
+class Agent(util.ContextStack):
     def __init__(self, hub_url):
         self._hub_url = hub_url
         self._reserved_places = {}
@@ -35,36 +35,28 @@ class Agent:
         self._ws_uri = f"{ws_scheme}://{url.netloc}/ws-agent"
         self._hub_host = url.netloc.split(":")[0]
 
-    async def __aenter__(self):
+    async def _context_stack(self, stack):
         runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
 
-        async with contextlib.AsyncExitStack() as stack:
-            headers = {"Authorization": "Bearer dummy-token-1"}
-            ws = await stack.enter_async_context(
-                websockets.connect(self._ws_uri, extra_headers=headers)
-            )
+        headers = {"Authorization": "Bearer dummy-token-1"}
+        ws = await stack.enter_async_context(
+            websockets.connect(self._ws_uri, extra_headers=headers)
+        )
 
-            async def receive_iter():
-                try:
-                    while True:
-                        yield await ws.recv()
-                except websockets.ConnectionClosedOK:
-                    pass
+        async def receive_iter():
+            try:
+                while True:
+                    yield await ws.recv()
+            except websockets.ConnectionClosedOK:
+                pass
 
-            self._hub = jsonrpc.Channel(ws.send, receive_iter())
+        self._hub = jsonrpc.Channel(ws.send, receive_iter())
 
-            stack.push_async_callback(self._cleanup)
+        stack.push_async_callback(self._cleanup)
 
-            self._unix_server = await stack.enter_async_context(
-                util.UnixServer(self._handle_client, runtime_dir / "not-my-board.sock")
-            )
-
-            self._stack = stack.pop_all()
-            await self._stack.__aenter__()
-            return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._stack.__aexit__(exc_type, exc, tb)
+        self._unix_server = await stack.enter_async_context(
+            util.UnixServer(self._handle_client, runtime_dir / "not-my-board.sock")
+        )
 
     async def _cleanup(self):
         for _, place in self._reserved_places.items():
@@ -303,7 +295,7 @@ class ReservedPlace:
         ]
 
 
-class UsbTunnel:
+class UsbTunnel(util.ContextStack):
     _target = "usb.not-my-board.localhost", 3240
     _ready_timeout = 5
 
@@ -316,24 +308,17 @@ class UsbTunnel:
         self._port_num = port_num
         self._vhci_port = None
 
-    async def __aenter__(self):
-        async with contextlib.AsyncExitStack() as stack:
-            ready_event = asyncio.Event()
-            await stack.enter_async_context(
-                util.background_task(self._tunnel_task(ready_event))
-            )
-            logger.debug("%s: Attaching USB device", self._name)
+    async def _context_stack(self, stack):
+        ready_event = asyncio.Event()
+        await stack.enter_async_context(
+            util.background_task(self._tunnel_task(ready_event))
+        )
+        logger.debug("%s: Attaching USB device", self._name)
 
-            try:
-                await asyncio.wait_for(ready_event.wait(), self._ready_timeout)
-            except asyncio.TimeoutError:
-                logger.warning("%s: Attaching USB device timed out", self._name)
-
-            self._stack = stack.pop_all()
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._stack.__aexit__(exc_type, exc, tb)
+        try:
+            await asyncio.wait_for(ready_event.wait(), self._ready_timeout)
+        except asyncio.TimeoutError:
+            logger.warning("%s: Attaching USB device timed out", self._name)
 
     async def _tunnel_task(self, ready_event):
         retry_timeout = 1
@@ -381,7 +366,7 @@ class UsbTunnel:
         )
 
 
-class TcpTunnel:
+class TcpTunnel(util.ContextStack):
     def __init__(self, part_name, iface_name, proxy, remote, local_port):
         self._part_name = part_name
         self._iface_name = iface_name
@@ -391,19 +376,16 @@ class TcpTunnel:
         self._local_port = local_port
         self._is_attached = False
 
-    async def __aenter__(self):
-        async with contextlib.AsyncExitStack() as stack:
-            ready_event = asyncio.Event()
-            await stack.enter_async_context(
-                util.background_task(self._tunnel_task(ready_event))
-            )
-            await ready_event.wait()
-            self._is_attached = True
-            self._stack = stack.pop_all()
-        return self
+    async def _context_stack(self, stack):
+        ready_event = asyncio.Event()
+        await stack.enter_async_context(
+            util.background_task(self._tunnel_task(ready_event))
+        )
+        await ready_event.wait()
+        self._is_attached = True
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self._stack.__aexit__(exc_type, exc, tb)
+        super().__aexit__(exc_type, exc, tb)
         self._is_attached = False
 
     async def _tunnel_task(self, ready_event):
