@@ -48,6 +48,9 @@ tutorials/sharing-http-server
 :caption: How-to Guides
 :hidden:
 
+how-to-guides/deploy-hub
+how-to-guides/set-up-exporter
+how-to-guides/set-up-agent
 how-to-guides/usb-export
 how-to-guides/usb-import
 ```

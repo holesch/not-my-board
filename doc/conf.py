@@ -27,6 +27,7 @@ html_title = f"{project} Documentation"
 
 myst_enable_extensions = [
     "deflist",
+    "colon_fence",
 ]
 
 # exclude prompts and output from copies
