@@ -83,10 +83,6 @@ EOF
 
 load_vhci_hcd() {
     modprobe vhci-hcd
-    for file_name in attach detach; do
-        chgrp vhci "/sys/devices/platform/vhci_hcd.0/$file_name"
-        chmod g+w "/sys/devices/platform/vhci_hcd.0/$file_name"
-    done
 }
 
 main "$@"

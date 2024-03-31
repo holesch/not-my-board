@@ -6,6 +6,7 @@ import ipaddress
 import logging
 import os
 import pathlib
+import shutil
 import traceback
 import urllib.parse
 
@@ -34,8 +35,6 @@ class Agent(util.ContextStack):
         self._hub_host = url.netloc.split(":")[0]
 
     async def _context_stack(self, stack):
-        runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
-
         auth = "Bearer dummy-token-1"
         self._hub = await stack.enter_async_context(
             jsonrpc.WebsocketChannel(self._ws_uri, start=False, auth=auth)
@@ -43,9 +42,18 @@ class Agent(util.ContextStack):
 
         stack.push_async_callback(self._cleanup)
 
+        socket_path = pathlib.Path("/run") / "not-my-board-agent.sock"
         self._unix_server = await stack.enter_async_context(
-            util.UnixServer(self._handle_client, runtime_dir / "not-my-board.sock")
+            util.UnixServer(self._handle_client, socket_path)
         )
+
+        os.chmod(socket_path, 0o660)
+        try:
+            shutil.chown(socket_path, group="not-my-board")
+        except Exception as e:
+            logger.warning(
+                'Failed to change group on agent socket "%s": %s', socket_path, e
+            )
 
     async def _cleanup(self):
         for _, place in self._reserved_places.items():

@@ -100,7 +100,7 @@ async def test_raw_usb_forwarding(vms):
         # wait for listening socket
         await vms.exporter.ssh_poll("nc -z 127.0.0.1 3240")
 
-        async with vms.client.ssh_task(
+        async with vms.client.ssh_task_root(
             f"python3 -m not_my_board._usbip import {vms.exporter.ip} 2-1 0",
             "usbip import",
         ):
@@ -126,8 +126,8 @@ async def test_usb_forwarding(vms):
             f"not-my-board export http://{vms.hub.ip}:2092 ./src/tests/qemu-usb-place.toml",
             "export",
         ):
-            await vms.client.ssh("""'rm -f "$XDG_RUNTIME_DIR/not-my-board.sock"'""")
-            async with vms.client.ssh_task(
+            await vms.client.ssh("""'doas rm -f "/run/not-my-board-agent.sock"'""")
+            async with vms.client.ssh_task_root(
                 f"not-my-board agent http://{vms.hub.ip}:2092", "agent"
             ):
                 # wait until exported place is registered
@@ -136,7 +136,7 @@ async def test_usb_forwarding(vms):
                 )
                 # wait until agent is ready
                 await vms.client.ssh_poll(
-                    """'test -e "$XDG_RUNTIME_DIR/not-my-board.sock"'"""
+                    """'test -e "/run/not-my-board-agent.sock"'"""
                 )
 
                 await vms.client.ssh("not-my-board attach ./src/tests/qemu-usb.toml")

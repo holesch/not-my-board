@@ -44,7 +44,7 @@ agent. This usually runs on a different host than the exporter, but as mentioned
 before, you run everything on a single host. Start the agent, leave it running
 and continue in a new terminal window.
 ```console
-$ not-my-board agent http://localhost:2092
+$ sudo not-my-board agent http://localhost:2092
 ```
 
 Now create a file with the import description. It says "I want a place, which
@@ -61,7 +61,7 @@ tcp.http = { local_port = 8081 }
 Use that import description to reserve and attach the place, that you previously
 exported.
 ```console
-$ not-my-board attach ./tutorial-tcp.toml
+$ sudo not-my-board attach ./tutorial-tcp.toml
 ```
 
 Now the exported HTTP server is available through the board farm. Notice that

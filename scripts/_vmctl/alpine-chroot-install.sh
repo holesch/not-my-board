@@ -24,12 +24,11 @@ setup-timezone -z UTC
 
 setup-user -au admin
 echo "permit nopass :wheel" >> /etc/doas.d/doas.conf
-addgroup -S vhci
-addgroup admin vhci
+addgroup -S not-my-board
+addgroup admin not-my-board
 
 # configure sshd
 sed -e 's/#\(PermitEmptyPasswords\) no/\1 yes/' \
-    -e 's/#\(UsePAM\) no/\1 yes/' \
     -i /etc/ssh/sshd_config
 cat >> /etc/conf.d/sshd << EOF
 sshd_disable_keygen="yes"

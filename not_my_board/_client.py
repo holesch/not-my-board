@@ -106,10 +106,8 @@ def _find_import_description(name):
 
 @contextlib.asynccontextmanager
 async def agent_channel():
-    runtime_dir = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
-    reader, writer = await asyncio.open_unix_connection(
-        runtime_dir / "not-my-board.sock"
-    )
+    socket_path = pathlib.Path("/run") / "not-my-board-agent.sock"
+    reader, writer = await asyncio.open_unix_connection(socket_path)
 
     async def send(data):
         writer.write(data + b"\n")
