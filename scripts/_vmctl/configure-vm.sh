@@ -18,7 +18,6 @@ main() {
     client)
         setup_network_client
         install_project
-        load_vhci_hcd
         ;;
     *)
         echo "error: invalid VM: $vm"
@@ -79,10 +78,6 @@ EOF
     echo > /dev/mdev.log
 
     /etc/init.d/mdev restart
-}
-
-load_vhci_hcd() {
-    modprobe vhci-hcd
 }
 
 main "$@"

@@ -222,6 +222,8 @@ async def _exec(*args, **kwargs):
 
 
 async def attach(reader, writer, busid, port_num):
+    await _ensure_vhci_hcd_driver_available()
+
     sock = writer.transport.get_extra_info("socket")
     # Client waits 2 seconds longer before sending keep alive probes, otherwise
     # both sides start sending at the same time.
@@ -301,7 +303,9 @@ def detach(vhci_port):
         pass
 
 
-def refresh_vhci_status():
+async def refresh_vhci_status():
+    await _ensure_vhci_hcd_driver_available()
+
     def status_paths():
         vhci_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0")
         # the first status path doesn't have a suffix
@@ -329,6 +333,13 @@ def refresh_vhci_status():
 
 def is_attached(port):
     return _vhci_status_attached[port]
+
+
+async def _ensure_vhci_hcd_driver_available():
+    vhci_hcd_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0")
+    if not vhci_hcd_path.exists():
+        logger.info("Loading vhci-hcd Kernel module")
+        await _exec("modprobe", "vhci-hcd")
 
 
 def _enable_keep_alive(sock, extra_idle_sec=0):

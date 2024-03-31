@@ -144,7 +144,7 @@ class Agent(util.ContextStack):
         ]
 
     async def status(self):
-        usbip.refresh_vhci_status()
+        await usbip.refresh_vhci_status()
         return [
             {"place": name, **status}
             for name, place in self._reserved_places.items()

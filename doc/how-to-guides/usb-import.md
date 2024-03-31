@@ -13,14 +13,7 @@ $ sudo groupadd --system not-my-board
 $ sudo usermod -a -G not-my-board "$USER"
 ```
 
-Then configure the system to load the `vhci-hcd` Kernel module on every boot:
-```{code-block} none
-:caption: /etc/modules-load.d/vhci-hcd.conf
-
-vhci-hcd
-```
-
-Reboot your system for the changes to take effect.
+Log out and log back in again for the changes to take effect.
 
 ## Importing the device
 
