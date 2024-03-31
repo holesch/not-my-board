@@ -1,0 +1,5 @@
+.highlight button.copybtn {
+    /* Show copy button only while hovering over the code block, to make long
+     * lines readable */
+    opacity: 0;
+}

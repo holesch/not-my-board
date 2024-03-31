@@ -34,3 +34,9 @@ copybutton_exclude = ".linenos, .gp, .go"
 
 # add search console verification
 html_extra_path = ["googlef248cffc234a230d.html"]
+
+# add custom CSS
+html_static_path = ["_static"]
+html_css_files = [
+    "css/custom.css",
+]
