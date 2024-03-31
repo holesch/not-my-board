@@ -7,8 +7,7 @@ This guide shows you how to make USB devices available in the board farm.
 `not-my-board` exports not only the currently plugged in USB device, but every
 USB device, that appears on a specific USB port. For that to work,
 `not-my-board` needs support from the device manager to get notified when a new
-device appears and to load the `usbip-host` driver instead of the default
-driver.
+device appears.
 
 ### Integration with `udev`
 
