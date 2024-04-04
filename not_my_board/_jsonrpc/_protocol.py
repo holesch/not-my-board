@@ -75,8 +75,8 @@ class Channel(util.ContextStack):
             await util.cancel_tasks(self._tasks.copy())
 
     async def _context_stack(self, stack):
-        coro = util.background_task(self.communicate_forever())
-        await stack.enter_async_context(coro)
+        bg_task = util.background_task(self.communicate_forever())
+        await stack.enter_async_context(bg_task)
 
     def __getattr__(self, method_name):
         if method_name.startswith("_"):
