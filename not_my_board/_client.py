@@ -7,14 +7,15 @@ import pathlib
 import sys
 
 import not_my_board._jsonrpc as jsonrpc
+import not_my_board._models as models
+import not_my_board._util as util
 
 
 async def reserve(import_description, with_name=None):
-    import_description_file = _find_import_description(import_description)
-    reservation_name = import_description_file.stem if not with_name else with_name
+    found_import_desc = _find_import_description(import_description, with_name)
 
     async with agent_channel() as agent:
-        await agent.reserve(reservation_name, import_description_file.as_posix())
+        await agent.reserve(found_import_desc.dict())
 
 
 async def return_reservation(name):
@@ -33,10 +34,9 @@ async def attach(name, keep_others=False):
                 for other in others:
                     await agent.return_reservation(name=other, force=True)
         else:
-            import_description_file = _find_import_description(name)
-            reservation_name = import_description_file.stem
-            await agent.reserve(reservation_name, import_description_file.as_posix())
-            await agent.attach(reservation_name)
+            found_import_desc = _find_import_description(name)
+            await agent.reserve(found_import_desc.dict())
+            await agent.attach(found_import_desc.name)
 
             if not keep_others and reserved_names:
                 for other in reserved_names:
@@ -76,7 +76,7 @@ async def uevent(devpath):
         probe_path.write_text(devname)
 
 
-def _find_import_description(name):
+def _find_import_description(name, with_name=None):
     if "/" in name:
         import_description_file = pathlib.Path(name)
     else:
@@ -101,7 +101,13 @@ def _find_import_description(name):
             if not import_description_file.is_file():
                 raise ValueError(f"No import description file exists for name {name}")
 
-    return import_description_file
+    reservation_name = import_description_file.stem if not with_name else with_name
+    import_description_content = util.toml_loads(import_description_file.read_text())
+    import_description = models.ImportDesc(
+        name=reservation_name, **import_description_content
+    )
+
+    return import_description
 
 
 @contextlib.asynccontextmanager

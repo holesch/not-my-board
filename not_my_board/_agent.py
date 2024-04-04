@@ -74,7 +74,10 @@ class Agent(util.ContextStack):
         socket_channel = jsonrpc.Channel(send, reader, self)
         await socket_channel.communicate_forever()
 
-    async def reserve(self, name, import_description_file):
+    async def reserve(self, import_description):
+        import_description = models.ImportDesc(**import_description)
+        name = import_description.name
+
         if name in self._reserved_places:
             raise RuntimeError(f'A place named "{name}" is already reserved')
 
@@ -83,13 +86,6 @@ class Agent(util.ContextStack):
 
         self._pending.add(name)
         try:
-            import_description_content = util.toml_loads(
-                pathlib.Path(import_description_file).read_text()
-            )
-            import_description = models.ImportDesc(
-                name=name, **import_description_content
-            )
-
             response = await http.get_json(f"{self._hub_url}/api/v1/places")
             places = [models.Place(**p) for p in response["places"]]
 
