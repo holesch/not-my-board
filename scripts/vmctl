@@ -83,11 +83,11 @@ makeimg() {
         "$disk_mnt" \
         ;
 
-    ALPINE_RELEASE="v3.18"
-    download_alpine_package apk-tools-static 2.14.0-r2 \
-        c8465a56bac138677d3fb025f7e13a30d18210ef327880673314ad63d59c1977
+    ALPINE_RELEASE="v3.19"
+    download_alpine_package apk-tools-static 2.14.3-r1 \
+        13028afe91f3f8a64927844ea69e0d8f11ba96197a74e3efa199f3f1b3351a15
     download_alpine_package alpine-keys 2.4-r1 \
-        880983a4ba0e6403db432e7b2687af976e023567ab11d1428c758351011263e9
+        125e1ab758948ba6c597919d1c3b36e2e842f7a5be68d828ff5a1dceded41ebb
 
     apk() {
         "$work/apk-tools-static/sbin/apk.static" \

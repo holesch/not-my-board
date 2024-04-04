@@ -49,7 +49,13 @@ setup_network_client() {
 install_project() {
     mount_project_source
 
-    pip install --no-index --find-links ./src/scripts/_vmctl/img/pip-cache --no-build-isolation --config-settings=builddir="$PWD/build" --editable ./src/
+    pip install \
+        --break-system-packages \
+        --no-index \
+        --find-links ./src/scripts/_vmctl/img/pip-cache \
+        --no-build-isolation \
+        --config-settings=builddir="$PWD/build" \
+        --editable ./src/
     chown -R admin:admin build
 }
 
