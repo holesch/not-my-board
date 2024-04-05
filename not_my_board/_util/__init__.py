@@ -17,3 +17,8 @@ try:
     from tomllib import loads as toml_loads
 except ModuleNotFoundError:
     from tomli import loads as toml_loads
+
+try:
+    from asyncio import timeout
+except ImportError:
+    from async_timeout import timeout

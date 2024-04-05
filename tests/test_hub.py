@@ -63,7 +63,7 @@ async def register_exporter(hub, ip=DEFAULT_EXPORTER_IP):
     fake_exporter = FakeExporter(register_event)
     coro = hub.exporter_communicate(ip, fake_exporter)
     async with util.background_task(coro) as exporter_task:
-        async with asyncio.timeout(2):
+        async with util.timeout(2):
             await register_event.wait()
         yield fake_exporter, exporter_task
 

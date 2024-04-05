@@ -46,6 +46,7 @@ not-my-board = "not_my_board.cli:main"
 
 [project.optional-dependencies]
 test = [
+    "async-timeout; python_version < '3.11'",
     "black",
     "codespell",
     "isort",

@@ -120,7 +120,7 @@ async def test_notification_execution(fakes):
     await fakes.transport.send_to_jsonrpc(method="set_event")
 
     # check if event was set
-    async with asyncio.timeout(1):
+    async with util.timeout(1):
         await fakes.api.event.wait()
 
     # there should be no response
