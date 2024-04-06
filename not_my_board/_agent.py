@@ -431,7 +431,7 @@ class TcpTunnel(util.ContextStack):
         self._is_attached = True
 
     async def __aexit__(self, exc_type, exc, tb):
-        super().__aexit__(exc_type, exc, tb)
+        await super().__aexit__(exc_type, exc, tb)
         self._is_attached = False
 
     @property
