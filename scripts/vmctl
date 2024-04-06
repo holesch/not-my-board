@@ -343,9 +343,9 @@ configure() {
 wait_for_sshd() {
     vm="$1"
     i=0
-    while [ "$i" -lt 30 ]; do
+    while [ "$i" -lt 70 ]; do
         if ssh_vm "$vm" true 2>/dev/null; then
-            break
+            return
         fi
         i=$((i + 1))
         if [ -e /dev/kvm ]; then
@@ -355,6 +355,9 @@ wait_for_sshd() {
             sleep 5
         fi
     done
+
+    echo "error: VM doesn't respond" >&2
+    return 1
 }
 
 ssh() {
