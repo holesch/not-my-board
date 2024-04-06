@@ -53,7 +53,7 @@ async def _request_json(method, url, content_type=None, body=None):
         default_port = 80
         ssl = False
     else:
-        raise ValueError("Unknown scheme '{url.scheme}'")
+        raise ValueError(f'Unknown scheme "{url.scheme}"')
 
     port = url.port or default_port
 

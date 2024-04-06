@@ -303,7 +303,7 @@ class ReservedPlace:
     async def attach(self):
         if self._stack is not None:
             raise RuntimeError(
-                'Place "{self._import_description.name}" is already attached'
+                f'Place "{self._import_description.name}" is already attached'
             )
 
         async with contextlib.AsyncExitStack() as stack:
@@ -314,7 +314,7 @@ class ReservedPlace:
     async def detach(self):
         if self._stack is None:
             raise RuntimeError(
-                'Place "{self._import_description.name}" is not attached'
+                f'Place "{self._import_description.name}" is not attached'
             )
 
         try:
