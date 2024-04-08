@@ -134,10 +134,16 @@ class FakeHub:
         self.reserve_request = None
         self.reserved = set()
         self.reserve_continue = asyncio.Event()
+        self.reserve_pending = asyncio.Event()
         self.reserve_continue.set()
 
     async def reserve(self, candidate_ids):
-        await self.reserve_continue.wait()
+        self.reserve_pending.set()
+        try:
+            await self.reserve_continue.wait()
+        finally:
+            self.reserve_pending.clear()
+
         self.reserve_request = candidate_ids
         self.reserved.add(candidate_ids[0])
         return candidate_ids[0]
@@ -186,9 +192,10 @@ class FakeAgentIO:
         return port_num
 
     def usbip_detach(self, vhci_port):
-        del self.attached[vhci_port]
-        self.detach_event[vhci_port].set()
-        del self.detach_event[vhci_port]
+        if vhci_port in self.attached:
+            del self.attached[vhci_port]
+            self.detach_event[vhci_port].set()
+            del self.detach_event[vhci_port]
 
     async def port_forward(self, ready_event, proxy, target, local_port):
         self.port_forwards[local_port] = (proxy, target)
@@ -259,7 +266,6 @@ async def test_list_place_1_attached(agent_io):
 async def test_status_place_1(agent_io):
     agent_io.places = [PLACE_1]
     await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
     status = await agent_io.agent_api.status()
     assert len(status) == 2
     usb0_status = {
@@ -267,17 +273,27 @@ async def test_status_place_1(agent_io):
         "part": "fake-board",
         "interface": "usb0",
         "type": "USB",
-        "attached": True,
+        "attached": False,
     }
     ssh_status = {
         "place": "fake",
         "part": "fake-board",
         "interface": "ssh",
         "type": "TCP",
-        "attached": True,
+        "attached": False,
     }
     assert usb0_status in status
     assert ssh_status in status
+
+
+async def test_status_place_1_attached(agent_io):
+    agent_io.places = [PLACE_1]
+    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
+    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
+    status = await agent_io.agent_api.status()
+    assert len(status) == 2
+    assert status[0]["attached"] is True
+    assert status[1]["attached"] is True
 
 
 async def test_reserve_twice(agent_io):
@@ -396,18 +412,21 @@ async def test_reserve_twice_concurrently(agent_io):
     coro_2 = agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
     async with util.background_task(coro_1) as task_1:
         async with util.background_task(coro_2) as task_2:
-            # one blocks, the other one should fail
-            done, pending = await asyncio.wait(
-                [task_1, task_2], return_when="FIRST_COMPLETED"
-            )
+            # wait until one blocks
+            await agent_io.hub.reserve_pending.wait()
 
-            # check if the one failed
-            assert len(done) == 1
-            with pytest.raises(RuntimeError) as execinfo:
-                await done.pop()
-            assert "is currently being reserved" in str(execinfo.value)
+            # the other one should block until the first one finishes
+            assert not task_1.done()
+            assert not task_2.done()
 
-            # unblock reserve call and check if the reservation was successful
+            # unblock reserve call
             agent_io.hub.reserve_continue.set()
-            await pending.pop()
+
+            # now one should finish successfully and the other one should fail
+            results = await asyncio.gather(task_1, task_2, return_exceptions=True)
+
+            assert None in results
+            exception = results[0] or results[1]
+            assert "is already reserved" in str(exception)
+
             assert len(await agent_io.agent_api.list()) == 1
