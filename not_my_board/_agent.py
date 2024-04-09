@@ -26,14 +26,15 @@ Address = Tuple[str, int]
 
 
 async def agent(hub_url):
-    io = _AgentIO(hub_url)
+    io = _AgentIO(hub_url, http.Client())
     async with Agent(hub_url, io) as agent_:
         await agent_.serve_forever()
 
 
 class _AgentIO:
-    def __init__(self, hub_url):
+    def __init__(self, hub_url, http_client):
         self._hub_url = hub_url
+        self._http = http_client
 
     @contextlib.asynccontextmanager
     async def hub_rpc(self):
@@ -68,7 +69,7 @@ class _AgentIO:
         await channel.communicate_forever()
 
     async def get_places(self):
-        response = await http.get_json(f"{self._hub_url}/api/v1/places")
+        response = await self._http.get_json(f"{self._hub_url}/api/v1/places")
         return [models.Place(**p) for p in response["places"]]
 
     @staticmethod
@@ -79,9 +80,8 @@ class _AgentIO:
     def usbip_is_attached(vhci_port):
         return usbip.is_attached(vhci_port)
 
-    @staticmethod
-    async def usbip_attach(proxy, target, port_num, usbid):
-        tunnel = http.open_tunnel(*proxy, *target)
+    async def usbip_attach(self, proxy, target, port_num, usbid):
+        tunnel = self._http.open_tunnel(*proxy, *target)
         async with tunnel as (reader, writer, trailing_data):
             if trailing_data:
                 raise ProtocolError("USB/IP implementation cannot handle trailing data")
@@ -100,9 +100,8 @@ class _AgentIO:
             ready_event.set()
             await server.serve_forever()
 
-    @staticmethod
-    async def _handle_port_forward_client(proxy, target, client_r, client_w):
-        async with http.open_tunnel(*proxy, *target) as (
+    async def _handle_port_forward_client(self, proxy, target, client_r, client_w):
+        async with self._http.open_tunnel(*proxy, *target) as (
             remote_r,
             remote_w,
             trailing_data,
