@@ -19,6 +19,6 @@ except ModuleNotFoundError:
     from tomli import loads as toml_loads
 
 try:
-    from asyncio import timeout
+    from asyncio import timeout, timeout_at
 except ImportError:
-    from async_timeout import timeout
+    from async_timeout import timeout, timeout_at

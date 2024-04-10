@@ -27,6 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "asgineer",
+    "async-timeout; python_version < '3.11'",
     "h11",
     "pydantic ~= 1.10",
     "tomli; python_version < '3.11'",
@@ -46,7 +47,6 @@ not-my-board = "not_my_board.cli:main"
 
 [project.optional-dependencies]
 test = [
-    "async-timeout; python_version < '3.11'",
     "black",
     "codespell",
     "isort",
