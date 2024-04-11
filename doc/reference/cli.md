@@ -4,37 +4,37 @@ Here's a description of all the commands and options `not-my-board` supports.
 
 ## Commands
 
-**`hub`** [**`-h`**|**`--help`**]
+**`hub`** \[**`-h`**|**`--help`**\]
 : Start the board farm *Hub*. There should be only one hub in the entire
   network.
 
-**`export`** [**`-h`**|**`--help`**] [**`--cacert`** *cacert*] *hub_url* *export_description*
+**`export`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] *hub_url* *export_description*
 : Make connected boards and equipment available in the board farm.
 
-**`agent`** [**`-h`**|**`--help`**] [**`--cacert`**] *hub_url*
+**`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`**\] *hub_url*
 : Start an *Agent*.
 
-**`reserve`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] [**`-n`**|**`--with-name`** *name*] *import_description*
+**`reserve`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--with-name`** *name*\] *import_description*
 : Reserve a *Place*.
 
-**`return`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] *name*
+**`return`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *name*
 : Return a reserved *Place*.
 
-**`attach`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] [**`-k`**|**`--keep-others`**] *name*|*import_description*
+**`attach`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-k`**|**`--keep-others`**\] *name*|*import_description*
 : Attach a reserved *Place*. As a convenience this will also implicitly reserve
   the *Place*, if it's not reserved, yet.
 
-**`detach`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] [**`-k`**|**`--keep`**] *name*
+**`detach`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-k`**|**`--keep`**\] *name*
 : Detach an attached *Place*. By default this will also return the reservation:
   Use {option}`--keep <not-my-board --keep>` to keep the reservation.
 
-**`list`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] [**`-n`**|**`--no-header`**]
+**`list`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : List reserved *Places*.
 
-**`status`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] [**`-n`**|**`--no-header`**]
+**`status`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : Show status of attached places and its interfaces.
 
-**`uevent`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] *devpath*
+**`uevent`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *devpath*
 : Handle Kernel uevent for USB devices. This should be called by the device
   manager, e.g. *udev*(7).
 
