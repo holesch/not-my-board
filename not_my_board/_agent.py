@@ -25,8 +25,8 @@ USBIP_REMOTE = ("usb.not-my-board.localhost", 3240)
 Address = Tuple[str, int]
 
 
-async def agent(hub_url):
-    io = _AgentIO(hub_url, http.Client())
+async def agent(hub_url, ca_files):
+    io = _AgentIO(hub_url, http.Client(ca_files))
     async with Agent(hub_url, io) as agent_:
         await agent_.serve_forever()
 
@@ -40,7 +40,7 @@ class _AgentIO:
     async def hub_rpc(self):
         auth = "Bearer dummy-token-1"
         url = f"{self._hub_url}/ws-agent"
-        async with jsonrpc.WebsocketChannel(url, auth=auth) as rpc:
+        async with jsonrpc.WebsocketChannel(url, self._http, auth=auth) as rpc:
             yield rpc
 
     @contextlib.asynccontextmanager

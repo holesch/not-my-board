@@ -5,6 +5,7 @@ import codecs
 import contextlib
 import json
 import logging
+import ssl
 import urllib.parse
 
 import h11
@@ -24,6 +25,12 @@ class ProtocolError(Exception):
 
 
 class Client:
+    def __init__(self, ca_files=None):
+        self._ssl_ctx = ssl.create_default_context()
+        if ca_files:
+            for ca_file in ca_files:
+                self._ssl_ctx.load_verify_locations(cafile=ca_file)
+
     async def get_json(self, url):
         return await self._request_json("GET", url)
 
@@ -57,16 +64,16 @@ class Client:
 
         if url.scheme == "https":
             default_port = 443
-            ssl = True
+            ssl_ = self._ssl_ctx
         elif url.scheme == "http":
             default_port = 80
-            ssl = False
+            ssl_ = False
         else:
             raise ValueError(f'Unknown scheme "{url.scheme}"')
 
         port = url.port or default_port
 
-        async with util.connect(url.hostname, port, ssl=ssl) as (reader, writer):
+        async with util.connect(url.hostname, port, ssl=ssl_) as (reader, writer):
             writer.write(to_send)
             await writer.drain()
 
@@ -147,7 +154,9 @@ class Client:
         ws_uri = websockets.uri.parse_uri(ws_uri)
         protocol = websockets.ClientProtocol(ws_uri)
 
-        connect = util.connect(ws_uri.host, ws_uri.port, ssl=ws_uri.secure)
+        ssl_ = self._ssl_ctx if ws_uri.secure else False
+
+        connect = util.connect(ws_uri.host, ws_uri.port, ssl=ssl_)
         async with connect as (reader, writer):
             async with _WebsocketConnection(protocol, reader, writer, auth) as con:
                 yield con

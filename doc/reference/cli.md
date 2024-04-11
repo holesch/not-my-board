@@ -8,10 +8,10 @@ Here's a description of all the commands and options `not-my-board` supports.
 : Start the board farm *Hub*. There should be only one hub in the entire
   network.
 
-**`export`** [**`-h`**|**`--help`**] *hub_url* *export_description*
+**`export`** [**`-h`**|**`--help`**] [**`--cacert`** *cacert*] *hub_url* *export_description*
 : Make connected boards and equipment available in the board farm.
 
-**`agent`** [**`-h`**|**`--help`**] *hub_url*
+**`agent`** [**`-h`**|**`--help`**] [**`--cacert`**] *hub_url*
 : Start an *Agent*.
 
 **`reserve`** [**`-h`**|**`--help`**] [**`-v`**|**`--verbose`**] [**`-n`**|**`--with-name`** *name*] *import_description*
@@ -45,6 +45,12 @@ Here's a description of all the commands and options `not-my-board` supports.
 
 ```{option} -h, --help
 Show help message and exit.
+```
+
+```{option} --cacert cacert
+Load additional CA certificates to trust when using TLS. *cacert* is a path to a
+file of concatenated CA certificates in PEM format. Can be used multiple times
+to load more than one file. System default CA certificates are always trusted.
 ```
 
 ```{option} hub_url

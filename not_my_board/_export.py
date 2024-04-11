@@ -8,6 +8,7 @@ import logging
 
 import h11
 
+import not_my_board._http as http
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
 import not_my_board._usbip as usbip
@@ -16,17 +17,19 @@ import not_my_board._util as util
 logger = logging.getLogger(__name__)
 
 
-async def export(hub_url, place):
-    async with Exporter(hub_url, place) as exporter:
+async def export(hub_url, place, ca_files):
+    http_client = http.Client(ca_files)
+    async with Exporter(hub_url, place, http_client) as exporter:
         await exporter.serve_forever()
 
 
 class Exporter(util.ContextStack):
-    def __init__(self, hub_url, export_desc_path):
+    def __init__(self, hub_url, export_desc_path, http_client):
         self._hub_url = hub_url
         self._ip_to_tasks_map = {}
         export_desc_content = export_desc_path.read_text()
         self._place = models.ExportDesc(**util.toml_loads(export_desc_content))
+        self._http = http_client
 
         tcp_targets = {
             f"{tcp.host}:{tcp.port}".encode()
@@ -54,7 +57,9 @@ class Exporter(util.ContextStack):
         url = f"{self._hub_url}/ws-exporter"
         auth = "Bearer dummy-token-1"
         self._ws_server = await stack.enter_async_context(
-            jsonrpc.WebsocketChannel(url, start=False, auth=auth, api_obj=self)
+            jsonrpc.WebsocketChannel(
+                url, self._http, start=False, auth=auth, api_obj=self
+            )
         )
 
     @jsonrpc.hidden

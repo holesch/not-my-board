@@ -40,6 +40,14 @@ def main():
             "-v", "--verbose", action="store_true", help="Enable debug logs"
         )
 
+    def add_cacert_arg(subparser):
+        subparser.add_argument(
+            "--cacert",
+            type=pathlib.Path,
+            action="append",
+            help="path to CA certificates, which should be trusted",
+        )
+
     subparser = add_subcommand("hub", help="start the board farm hub")
     subparser.set_defaults(verbose=True)
 
@@ -47,6 +55,7 @@ def main():
         "export", help="make connected boards available in the board farm"
     )
     subparser.set_defaults(verbose=True)
+    add_cacert_arg(subparser)
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
     subparser.add_argument(
         "export_description", type=pathlib.Path, help="path to a export description"
@@ -54,6 +63,7 @@ def main():
 
     subparser = add_subcommand("agent", help="start an agent")
     subparser.set_defaults(verbose=True)
+    add_cacert_arg(subparser)
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
 
     subparser = add_subcommand("reserve", help="reserve a place")
@@ -138,11 +148,11 @@ def _hub_command(_):
 
 
 async def _export_command(args):
-    await export(args.hub_url, args.export_description)
+    await export(args.hub_url, args.export_description, args.cacert)
 
 
 async def _agent_command(args):
-    await agent(args.hub_url)
+    await agent(args.hub_url, args.cacert)
 
 
 async def _reserve_command(args):
