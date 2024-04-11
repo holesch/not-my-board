@@ -11,7 +11,7 @@ added (replace `<my-hub-address>` with the address or domain name of the *Hub*):
 Description=Board Farm Exporter For Place %I
 
 [Service]
-ExecStart=/usr/local/bin/not-my-board export http://<my-hub-address> /etc/not-my-board/%i.toml
+ExecStart=/usr/local/bin/not-my-board export https://<my-hub-address> /etc/not-my-board/%i.toml
 Restart=on-failure
 RestartSec=10s
 

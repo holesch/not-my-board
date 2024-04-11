@@ -26,7 +26,7 @@ domain name of the *Hub*):
 Description=Board Farm Agent
 
 [Service]
-ExecStart=/usr/local/bin/not-my-board agent http://<my-hub-address>
+ExecStart=/usr/local/bin/not-my-board agent https://<my-hub-address>
 
 [Install]
 WantedBy=multi-user.target
