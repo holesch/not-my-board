@@ -4,7 +4,7 @@ import pytest
 
 import not_my_board._util as util
 
-from .util import ClientVM, ExporterVM, HubVM, VMs
+from .util import ClientVM, ExporterVM, HubVM, VMs, wait_for_ports
 
 
 @pytest.fixture(scope="session")
@@ -19,16 +19,7 @@ def event_loop():
 @pytest.fixture(scope="session")
 async def vms():
     async with HubVM() as hub:
-        while True:
-            try:
-                async with util.connect("127.0.0.1", 5001):
-                    pass
-                async with util.connect("127.0.0.1", 5002):
-                    pass
-            except ConnectionRefusedError:
-                await asyncio.sleep(0.1)
-                continue
-            break
+        await wait_for_ports(5001, 5002)
         async with ExporterVM() as exporter:
             async with ClientVM() as client:
                 await util.run_concurrently(

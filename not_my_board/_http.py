@@ -28,14 +28,16 @@ class ProtocolError(Exception):
 
 
 class Client:
-    def __init__(self, ca_files=None):
+    def __init__(self, ca_files=None, proxies=None):
         self._ssl_ctx = ssl.create_default_context()
         if ca_files:
             for ca_file in ca_files:
                 self._ssl_ctx.load_verify_locations(cafile=ca_file)
+
+        if proxies is None:
+            proxies = urllib.request.getproxies()
         self._proxies = {
-            scheme: self._parse_url(url)
-            for scheme, url in urllib.request.getproxies().items()
+            scheme: self._parse_url(url) for scheme, url in proxies.items()
         }
 
     async def get_json(self, url):

@@ -140,3 +140,16 @@ async def _log_output(stream, cmd, prefix):
     async for line in stream:
         sys.stderr.buffer.write(prefix + line)
         sys.stderr.buffer.flush()
+
+
+async def wait_for_ports(*ports, timeout=7):
+    async with util.timeout(timeout):
+        while True:
+            try:
+                for port in ports:
+                    async with util.connect("127.0.0.1", port):
+                        pass
+            except ConnectionRefusedError:
+                await asyncio.sleep(0.1)
+                continue
+            break
