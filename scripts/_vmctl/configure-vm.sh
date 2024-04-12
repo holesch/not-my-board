@@ -1,5 +1,9 @@
 #!/bin/sh
 
+ip_hub=192.168.200.1
+ip_exporter=192.168.200.2
+ip_client=192.168.200.3
+
 main() {
     vm="${1:?}"
     PS4=">>> "
@@ -32,18 +36,36 @@ setup_network_hub() {
     ip link set eth2 up
     ip link set dev eth2 master br0
 
-    ip addr add 192.168.200.1/24 dev br0
+    ip addr add "$ip_hub/24" dev br0
     ip link set br0 up
+
+    cat >> /etc/hosts << EOF
+127.0.0.1 hub.local
+$ip_exporter exporter.local
+$ip_client client.local
+EOF
 }
 
 setup_network_exporter() {
-    ip addr add 192.168.200.2/24 dev eth1
+    ip addr add "$ip_exporter/24" dev eth1
     ip link set eth1 up
+
+    cat >> /etc/hosts << EOF
+$ip_hub hub.local
+127.0.0.1 exporter.local
+$ip_client client.local
+EOF
 }
 
 setup_network_client() {
-    ip addr add 192.168.200.3/24 dev eth1
+    ip addr add "$ip_client/24" dev eth1
     ip link set eth1 up
+
+    cat >> /etc/hosts << EOF
+$ip_hub hub.local
+$ip_exporter exporter.local
+127.0.0.1 client.local
+EOF
 }
 
 install_project() {

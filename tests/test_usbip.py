@@ -9,7 +9,7 @@ async def test_raw_usb_forwarding(vms):
         await vms.exporter.ssh_poll("nc -z 127.0.0.1 3240")
 
         async with vms.client.ssh_task_root(
-            f"python3 -m not_my_board._usbip import {vms.exporter.ip} 2-1 0",
+            "python3 -m not_my_board._usbip import exporter.local 2-1 0",
             "usbip import",
         ):
             # wait for USB device to appear
@@ -31,12 +31,12 @@ async def test_usb_forwarding(vms):
         await vms.hub.ssh_poll("nc -z 127.0.0.1 2092")
 
         async with vms.exporter.ssh_task_root(
-            f"not-my-board export http://{vms.hub.ip}:2092 ./src/tests/qemu-usb-place.toml",
+            "not-my-board export http://hub.local:2092 ./src/tests/qemu-usb-place.toml",
             "export",
         ):
             await vms.client.ssh("""'doas rm -f "/run/not-my-board-agent.sock"'""")
             async with vms.client.ssh_task_root(
-                f"not-my-board agent http://{vms.hub.ip}:2092", "agent"
+                "not-my-board agent http://hub.local:2092", "agent"
             ):
                 # wait until exported place is registered
                 await vms.client.ssh_poll(

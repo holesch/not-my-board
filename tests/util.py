@@ -48,12 +48,10 @@ class _VM(util.ContextStack):
 
 class HubVM(_VM):
     _name = "hub"
-    ip = "192.168.200.1"
 
 
 class ExporterVM(_VM):
     _name = "exporter"
-    ip = "192.168.200.2"
 
     async def usb_attach(self):
         await sh("./scripts/vmctl usb attach")
@@ -64,7 +62,6 @@ class ExporterVM(_VM):
 
 class ClientVM(_VM):
     _name = "client"
-    ip = "192.168.200.3"
 
 
 async def sh(cmd, check=True, strip=True, prefix=None):
