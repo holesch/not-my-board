@@ -7,6 +7,9 @@ import json
 import logging
 import ssl
 import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from typing import Optional, Union
 
 import h11
 import websockets
@@ -30,6 +33,10 @@ class Client:
         if ca_files:
             for ca_file in ca_files:
                 self._ssl_ctx.load_verify_locations(cafile=ca_file)
+        self._proxies = {
+            scheme: self._parse_url(url)
+            for scheme, url in urllib.request.getproxies().items()
+        }
 
     async def get_json(self, url):
         return await self._request_json("GET", url)
@@ -40,7 +47,7 @@ class Client:
         return await self._request_json("POST", url, content_type, body)
 
     async def _request_json(self, method, url, content_type=None, body=None):
-        url = urllib.parse.urlsplit(url)
+        url = self._parse_url(url)
         headers = [
             ("Host", url.netloc),
             ("User-Agent", h11.PRODUCT_ID),
@@ -62,18 +69,7 @@ class Client:
             to_send += conn.send(h11.Data(body))
         to_send += conn.send(h11.EndOfMessage())
 
-        if url.scheme == "https":
-            default_port = 443
-            ssl_ = self._ssl_ctx
-        elif url.scheme == "http":
-            default_port = 80
-            ssl_ = False
-        else:
-            raise ValueError(f'Unknown scheme "{url.scheme}"')
-
-        port = url.port or default_port
-
-        async with util.connect(url.hostname, port, ssl=ssl_) as (reader, writer):
+        async with self._connect(url) as (reader, writer):
             writer.write(to_send)
             await writer.drain()
 
@@ -105,7 +101,66 @@ class Client:
         return json.loads(content)
 
     @contextlib.asynccontextmanager
-    async def open_tunnel(self, proxy_host, proxy_port, target_host, target_port):
+    async def _connect(self, url):
+        proxy = self._get_proxy(url)
+        if proxy:
+            tunnel = self.open_tunnel(
+                proxy.host, proxy.port, url.host, url.port, ssl_=proxy.ssl
+            )
+            async with tunnel as (reader, writer, trailing_data):
+                if trailing_data:
+                    raise ProtocolError("Unexpected trailing_data")
+                if url.ssl:
+                    await _start_tls(writer, url)
+                yield reader, writer
+        else:
+            async with util.connect(url.host, url.port, ssl=url.ssl) as (
+                reader,
+                writer,
+            ):
+                yield reader, writer
+
+    def _get_proxy(self, url):
+        proxy = self._proxies.get(url.scheme)
+        if proxy and not urllib.request.proxy_bypass_environment(
+            url.host, self._proxies
+        ):
+            return proxy
+        return None
+
+    def _parse_url(self, url):
+        url = urllib.parse.urlsplit(url)
+        if url.scheme == "https":
+            default_port = 443
+            ssl_ = self._ssl_ctx
+        elif url.scheme == "http":
+            default_port = 80
+            ssl_ = False
+        else:
+            raise ValueError(f'Unknown scheme "{url.scheme}"')
+
+        port = url.port or default_port
+
+        if not url.hostname:
+            raise ValueError(f'No hostname in URL "{url}"')
+
+        return _ParsedURL(
+            url.scheme,
+            url.netloc,
+            url.hostname,
+            port,
+            url.path,
+            url.query,
+            url.fragment,
+            url.username,
+            url.password,
+            ssl_,
+        )
+
+    @contextlib.asynccontextmanager
+    async def open_tunnel(
+        self, proxy_host, proxy_port, target_host, target_port, ssl_=False
+    ):
         headers = [
             ("Host", f"{target_host}:{target_port}"),
             ("User-Agent", h11.PRODUCT_ID),
@@ -118,7 +173,7 @@ class Client:
             )
         )
 
-        async with util.connect(proxy_host, proxy_port) as (reader, writer):
+        async with util.connect(proxy_host, proxy_port, ssl=ssl_) as (reader, writer):
             writer.write(to_send)
             writer.write(conn.send(h11.EndOfMessage()))
             await writer.drain()
@@ -141,23 +196,15 @@ class Client:
 
     @contextlib.asynccontextmanager
     async def websocket(self, url, auth=None):
-        url = urllib.parse.urlsplit(url)
+        url = self._parse_url(url)
 
-        if url.scheme == "http":
-            ws_scheme = "ws"
-        elif url.scheme == "https":
-            ws_scheme = "wss"
-        else:
-            ws_scheme = url.scheme
-
+        ws_scheme = "ws" if url.scheme == "http" else "wss"
         ws_uri = f"{ws_scheme}://{url.netloc}{url.path}"
         ws_uri = websockets.uri.parse_uri(ws_uri)
+
         protocol = websockets.ClientProtocol(ws_uri)
 
-        ssl_ = self._ssl_ctx if ws_uri.secure else False
-
-        connect = util.connect(ws_uri.host, ws_uri.port, ssl=ssl_)
-        async with connect as (reader, writer):
+        async with self._connect(url) as (reader, writer):
             async with _WebsocketConnection(protocol, reader, writer, auth) as con:
                 yield con
 
@@ -284,3 +331,38 @@ class _WebsocketConnection:
             else:
                 if self._writer.can_write_eof():
                     self._writer.write_eof()
+
+
+@dataclass
+class _ParsedURL:
+    scheme: str
+    netloc: str
+    host: str
+    port: int
+    path: str
+    query: str
+    fragment: str
+    username: Optional[str]
+    password: Optional[str]
+    ssl: Union[bool, ssl.SSLContext]
+
+
+# pylint: disable=protected-access
+# remove, if Python version < 3.11 is no longer supported
+async def _start_tls(writer, url):
+    if hasattr(writer, "start_tls"):
+        await writer.start_tls(url.ssl, server_hostname=url.host)
+    else:
+        # backported from 3.11, commit 6217864f ("gh-79156: Add start_tls()
+        # method to streams API (#91453)")
+        protocol = writer._protocol
+        await writer.drain()
+        loop = asyncio.get_running_loop()
+        new_transport = await loop.start_tls(
+            writer._transport, protocol, url.ssl, server_hostname=url.host
+        )
+        writer._transport = new_transport
+
+        protocol._stream_writer = writer
+        protocol._transport = new_transport
+        protocol._over_ssl = True
