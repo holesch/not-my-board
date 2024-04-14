@@ -3,6 +3,7 @@
 import asyncio
 import codecs
 import contextlib
+import ipaddress
 import json
 import logging
 import ssl
@@ -124,9 +125,7 @@ class Client:
 
     def _get_proxy(self, url):
         proxy = self._proxies.get(url.scheme)
-        if proxy and not urllib.request.proxy_bypass_environment(
-            url.host, self._proxies
-        ):
+        if proxy and not is_proxy_disabled(url.host, self._proxies.get("no", "")):
             return proxy
         return None
 
@@ -347,6 +346,91 @@ class _ParsedURL:
     username: Optional[str]
     password: Optional[str]
     ssl: Union[bool, ssl.SSLContext]
+
+
+def is_proxy_disabled(host, no_proxy_env):
+    if not host or not no_proxy_env:
+        return False
+
+    if no_proxy_env == "*":
+        return True
+
+    def patterns(network_type=None):
+        for pattern in no_proxy_env.split(","):
+            pattern = pattern.strip()
+            if pattern:
+                if network_type is not None:
+                    try:
+                        pattern = network_type(pattern, strict=False)
+                    except ValueError:
+                        continue
+                yield pattern
+
+    is_disabled = False
+
+    if host[0] == "[":
+        # match IPv6
+        return _is_proxy_disabled_ipv6(host, patterns(ipaddress.IPv6Network))
+    else:
+        try:
+            addr = ipaddress.IPv4Address(host)
+        except ValueError:
+            # neither IPv4 nor IPv6 address, match hostname
+            is_disabled = _is_proxy_disabled_host(host, patterns())
+        else:
+            # match IPv4
+            for net in patterns(ipaddress.IPv4Network):
+                if addr in net:
+                    is_disabled = True
+                    break
+
+    return is_disabled
+
+
+def _is_proxy_disabled_ipv6(host, disabled_networks):
+    end = host.find("]")
+    if end > 0:
+        try:
+            addr = ipaddress.IPv6Address(host[1:end])
+        except ValueError:
+            pass
+        else:
+            for net in disabled_networks:
+                if addr in net:
+                    return True
+    return False
+
+
+def _is_proxy_disabled_host(host, patterns):
+    # ignore trailing dots in the host name
+    if host[-1] == ".":
+        host = host[:-1]
+
+    # ignore case
+    host = host.lower()
+
+    for pattern in patterns:
+        # ignore trailing dots in the pattern to check
+        if pattern[-1] == ".":
+            pattern = pattern[:-1]
+
+        if pattern and pattern[0] == ".":
+            # ignore leading pattern dot as well
+            pattern = pattern[1:]
+
+        if not pattern:
+            continue
+
+        # exact match: example.com matches 'example.com'
+        if host == pattern.lower():
+            return True
+
+        # tail match: www.example.com matches 'example.com'
+        # note: nonexample.com does not match 'example.com'
+        if host.endswith(f".{pattern}"):
+            return True
+
+    return False
 
 
 # pylint: disable=protected-access
