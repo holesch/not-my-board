@@ -60,6 +60,7 @@ how-to-guides/usb-import
 :hidden:
 
 reference/cli
+reference/hub-configuration
 reference/export-description
 reference/import-description
 ```

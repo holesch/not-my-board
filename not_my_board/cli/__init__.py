@@ -9,7 +9,7 @@ import not_my_board._client as client
 import not_my_board._util as util
 from not_my_board._agent import agent
 from not_my_board._export import export
-from not_my_board._hub import hub
+from not_my_board._hub import run_hub
 
 try:
     from ..__about__ import __version__
@@ -144,7 +144,7 @@ def main():
 
 
 def _hub_command(_):
-    hub()
+    run_hub()
 
 
 async def _export_command(args):

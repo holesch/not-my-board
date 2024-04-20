@@ -6,6 +6,7 @@ import contextvars
 import ipaddress
 import itertools
 import logging
+import pathlib
 import random
 import traceback
 
@@ -21,37 +22,80 @@ reservation_context_var = contextvars.ContextVar("reservation_context")
 valid_tokens = ("dummy-token-1", "dummy-token-2")
 
 
-def hub():
+def run_hub():
     asgineer.run(asgi_app, "uvicorn", ":2092")
 
 
+async def asgi_app(scope, receive, send):
+    if scope["type"] == "lifespan":
+        # asgineer doesn't expose the lifespan hooks. Handle them here
+        # before handing over to asgineer
+        await _handle_lifespan(scope, receive, send)
+    else:
+        # to_asgi() decorator adds extra arguments
+        # pylint: disable-next=too-many-function-args
+        await _handle_request(scope, receive, send)
+
+
+async def _handle_lifespan(scope, receive, send):
+    while True:
+        message = await receive()
+        if message["type"] == "lifespan.startup":
+            try:
+                config_file = pathlib.Path("/etc/not-my-board/not-my-board-hub.toml")
+                if config_file.exists():
+                    config = util.toml_loads(config_file.read_text())
+                else:
+                    config = {}
+
+                hub = Hub()
+                await hub.startup(config)
+                scope["state"]["hub"] = hub
+            except Exception as err:
+                await send({"type": "lifespan.startup.failed", "message": str(err)})
+            else:
+                await send({"type": "lifespan.startup.complete"})
+        elif message["type"] == "lifespan.shutdown":
+            try:
+                await hub.shutdown()
+            except Exception as err:
+                await send({"type": "lifespan.shutdown.failed", "message": str(err)})
+            else:
+                await send({"type": "lifespan.shutdown.complete"})
+            return
+        else:
+            logger.warning("Unknown lifespan message %s", message["type"])
+
+
 @asgineer.to_asgi
-async def asgi_app(request):
+async def _handle_request(request):
+    hub = request.scope["state"]["hub"]
+
     if isinstance(request, asgineer.WebsocketRequest):
         if request.path == "/ws-agent":
-            return await _handle_agent(request)
+            return await _handle_agent(hub, request)
         elif request.path == "/ws-exporter":
-            return await _handle_exporter(request)
+            return await _handle_exporter(hub, request)
         await request.close()
         return
     elif isinstance(request, asgineer.HttpRequest):
         if request.path == "/api/v1/places":
-            return await _hub.get_places()
+            return await hub.get_places()
     return 404, {}, "Page not found"
 
 
-async def _handle_agent(ws):
+async def _handle_agent(hub, ws):
     await _authorize_ws(ws)
     client_ip = ws.scope["client"][0]
     server = jsonrpc.Channel(ws.send, ws.receive_iter())
-    await _hub.agent_communicate(client_ip, server)
+    await hub.agent_communicate(client_ip, server)
 
 
-async def _handle_exporter(ws):
+async def _handle_exporter(hub, ws):
     await _authorize_ws(ws)
     client_ip = ws.scope["client"][0]
     exporter = jsonrpc.Channel(ws.send, ws.receive_iter())
-    await _hub.exporter_communicate(client_ip, exporter)
+    await hub.exporter_communicate(client_ip, exporter)
 
 
 async def _authorize_ws(ws):
@@ -79,6 +123,24 @@ class Hub:
 
     def __init__(self):
         self._id_generator = itertools.count(start=1)
+
+    async def startup(self, config):
+        if "log_level" in config:
+            log_level_str = config["log_level"]
+            log_level_map = {
+                "debug": logging.DEBUG,
+                "info": logging.INFO,
+                "warning": logging.WARNING,
+                "error": logging.ERROR,
+            }
+            log_level = log_level_map[log_level_str]
+
+            logging.basicConfig(
+                format="%(levelname)s: %(name)s: %(message)s", level=log_level
+            )
+
+    async def shutdown(self):
+        pass
 
     @jsonrpc.hidden
     async def get_places(self):
@@ -187,9 +249,6 @@ class Hub:
                 await rpc.set_allowed_ips([])
         else:
             logger.info("Place returned, but it doesn't exist: %d", place_id)
-
-
-_hub = Hub()
 
 
 def _unmap_ip(ip_str):
