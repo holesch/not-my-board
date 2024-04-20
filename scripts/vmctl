@@ -84,8 +84,8 @@ makeimg() {
         ;
 
     ALPINE_RELEASE="v3.19"
-    download_alpine_package apk-tools-static 2.14.3-r1 \
-        13028afe91f3f8a64927844ea69e0d8f11ba96197a74e3efa199f3f1b3351a15
+    download_alpine_package apk-tools-static 2.14.4-r0 \
+        14cc4c09fb53a34943e9aca77eacc0078f5ed74e2e09db02abd2a24bb5fd4cc8
     download_alpine_package alpine-keys 2.4-r1 \
         125e1ab758948ba6c597919d1c3b36e2e842f7a5be68d828ff5a1dceded41ebb
 
