@@ -147,18 +147,18 @@ async def test_all_places_disappear_while_trying_to_reserve(hub):
             candidate_ids = [places["places"][0]["id"]]
             await agent.reserve(candidate_ids)
 
-            # try to reserve same place again
-            coro = agent.reserve(candidate_ids)
-            async with util.background_task(coro) as reserve_task:
-                await asyncio.sleep(0.001)
-                # request should be in queue now
+            with pytest.raises(Exception) as execinfo:
+                # try to reserve same place again
+                coro = agent.reserve(candidate_ids)
+                async with util.background_task(coro):
+                    await asyncio.sleep(0.001)
+                    # request should be in queue now
 
-                # when the exporter disappears ...
-                await util.cancel_tasks([exporter_task])
-                # ... then the queued reservation is canceled
-                with pytest.raises(Exception) as execinfo:
-                    await reserve_task
-                assert "All candidate places are gone" in str(execinfo.value)
+                    # when the exporter disappears ...
+                    await util.cancel_tasks([exporter_task])
+                    await asyncio.sleep(0.5)
+            # ... then the queued reservation is canceled
+            assert "All candidate places are gone" in str(execinfo.value)
 
 
 async def test_one_place_disappears_while_trying_to_reserve(hub):

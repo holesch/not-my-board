@@ -410,23 +410,26 @@ async def test_reserve_twice_concurrently(agent_io):
     # start two reserve tasks in parallel
     coro_1 = agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
     coro_2 = agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    async with util.background_task(coro_1) as task_1:
-        async with util.background_task(coro_2) as task_2:
-            # wait until one blocks
-            await agent_io.hub.reserve_pending.wait()
 
-            # the other one should block until the first one finishes
-            assert not task_1.done()
-            assert not task_2.done()
+    with pytest.raises(RuntimeError) as execinfo:
+        async with util.background_task(coro_1) as task_1:
+            async with util.background_task(coro_2) as task_2:
+                # wait until one blocks
+                await agent_io.hub.reserve_pending.wait()
 
-            # unblock reserve call
-            agent_io.hub.reserve_continue.set()
+                # the other one should block until the first one finishes
+                assert not task_1.done()
+                assert not task_2.done()
 
-            # now one should finish successfully and the other one should fail
-            results = await asyncio.gather(task_1, task_2, return_exceptions=True)
+                # unblock reserve call
+                agent_io.hub.reserve_continue.set()
 
-            assert None in results
-            exception = results[0] or results[1]
-            assert "is already reserved" in str(exception)
+                await asyncio.sleep(0.5)
 
-            assert len(await agent_io.agent_api.list()) == 1
+    # now one should finish successfully and the other one should fail
+    results = await asyncio.gather(task_1, task_2, return_exceptions=True)
+
+    assert None in results
+    assert "is already reserved" in str(execinfo.value)
+
+    assert len(await agent_io.agent_api.list()) == 1

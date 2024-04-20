@@ -48,16 +48,63 @@ async def run_concurrently(*coros):
         await cancel_tasks(tasks)
 
 
-@contextlib.asynccontextmanager
-async def background_task(coro):
-    """Runs the coro until leaving the context manager.
+def background_task(coro):
+    """Runs coro as a background task until leaving the context manager.
 
-    The coro task is canceled when leaving the context."""
-    task = asyncio.create_task(coro)
-    try:
-        yield task
-    finally:
-        await cancel_tasks([task])
+    If the background task fails while the context manager is active, then the
+    foreground task is canceled and the context manager raises the exception of
+    the background task.
+
+    If the context manager exits while the background task is still running,
+    then the background task is canceled."""
+
+    return _BackgroundTask(coro)
+
+
+class _BackgroundTask:
+    def __init__(self, coro):
+        self._coro = coro
+        self._bg_exception = None
+
+    async def __aenter__(self):
+        self._bg_task = asyncio.create_task(self._coro)
+        self._bg_task.add_done_callback(self._on_bg_task_done)
+        self._fg_task = asyncio.current_task()
+        self._num_cancel_requests = self._get_num_cancel_requests()
+        return self._bg_task
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self._bg_task.remove_done_callback(self._on_bg_task_done)
+        if self._bg_exception:
+            if (
+                self._uncancel() <= self._num_cancel_requests
+                and exc_type is asyncio.CancelledError
+            ):
+                # foreground task was only canceled by this class, raise
+                # real error
+                raise self._bg_exception from exc
+        else:
+            await cancel_tasks([self._bg_task])
+
+    def _on_bg_task_done(self, task):
+        if not task.cancelled():
+            self._bg_exception = task.exception()
+            if self._bg_exception:
+                self._fg_task.cancel()
+
+    def _get_num_cancel_requests(self):
+        # remove, if Python version < 3.11 is no longer supported
+        if hasattr(self._fg_task, "cancelling"):
+            return self._fg_task.cancelling()
+        else:
+            return 0
+
+    def _uncancel(self):
+        # remove, if Python version < 3.11 is no longer supported
+        if hasattr(self._fg_task, "uncancel"):
+            return self._fg_task.uncancel()
+        else:
+            return 0
 
 
 async def cancel_tasks(tasks):

@@ -231,30 +231,30 @@ async def test_send_notification(fakes):
 
 
 async def test_receive_error(fakes):
-    async with util.background_task(fakes.channel.some_func()) as call:
-        message = await fakes.transport.receive_from_jsonrpc()
+    with pytest.raises(jsonrpc.RemoteError) as execinfo:
+        async with util.background_task(fakes.channel.some_func()):
+            message = await fakes.transport.receive_from_jsonrpc()
 
-        # send error response
-        await fakes.transport.send_to_jsonrpc(
-            id=message["id"],
-            error={
-                "code": 123,
-                "message": "fake error",
-                "data": {
-                    "traceback": (
-                        "Traceback:\n"
-                        '  File "fake", line 207, in fake_func\n'
-                        "    raise FakeError()\n"
-                        "FakeError: fake error\n"
-                    ),
+            # send error response
+            await fakes.transport.send_to_jsonrpc(
+                id=message["id"],
+                error={
+                    "code": 123,
+                    "message": "fake error",
+                    "data": {
+                        "traceback": (
+                            "Traceback:\n"
+                            '  File "fake", line 207, in fake_func\n'
+                            "    raise FakeError()\n"
+                            "FakeError: fake error\n"
+                        ),
+                    },
                 },
-            },
-        )
+            )
+            await asyncio.sleep(0.5)
 
-        # call should raise RemoteError
-        with pytest.raises(jsonrpc.RemoteError) as execinfo:
-            await call
-        assert "fake error" in str(execinfo.value)
+    # call should raise RemoteError
+    assert "fake error" in str(execinfo.value)
 
 
 async def test_send_cancellation(fakes):
@@ -314,19 +314,20 @@ async def test_prevent_hidden_function_call(fakes):
 
 
 async def test_fail_call_on_parse_error(fakes):
-    async with util.background_task(fakes.channel.some_func()) as call:
-        # check sent request
-        message = await fakes.transport.receive_from_jsonrpc()
+    with pytest.raises(jsonrpc.ProtocolError) as execinfo:
+        async with util.background_task(fakes.channel.some_func()):
+            # check sent request
+            message = await fakes.transport.receive_from_jsonrpc()
 
-        # send invalid error response
-        await fakes.transport.send_to_jsonrpc(
-            id=message["id"], error={"code": "not int"}
-        )
+            # send invalid error response
+            await fakes.transport.send_to_jsonrpc(
+                id=message["id"], error={"code": "not int"}
+            )
 
-        # call with matching ID should still fail
-        with pytest.raises(jsonrpc.ProtocolError) as execinfo:
-            await call
-        assert '"error.code" must be an integer' in str(execinfo.value)
+            await asyncio.sleep(0.5)
+
+    # call with matching ID should still fail
+    assert '"error.code" must be an integer' in str(execinfo.value)
 
 
 @contextlib.asynccontextmanager
@@ -385,14 +386,15 @@ async def test_pending_call_is_canceled_on_shutdown():
     transport = FakeTransport()
     channel = jsonrpc.Channel(transport.send_to_test, transport.receive_from_test())
     async with util.background_task(channel.communicate_forever()) as com_task:
-        async with util.background_task(channel.some_func()) as call:
-            # wait for sent message
-            await transport.receive_from_jsonrpc()
-            await util.cancel_tasks([com_task])
 
-            with pytest.raises(RuntimeError) as execinfo:
-                await call
-            assert "Connection closed" in str(execinfo.value)
+        with pytest.raises(RuntimeError) as execinfo:
+            async with util.background_task(channel.some_func()):
+                # wait for sent message
+                await transport.receive_from_jsonrpc()
+                await util.cancel_tasks([com_task])
+                await asyncio.sleep(0.5)
+
+        assert "Connection closed" in str(execinfo.value)
 
 
 async def test_log_error_response_with_unknown_id(fakes):
