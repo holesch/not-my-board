@@ -1,10 +1,12 @@
 import asyncio
 import contextlib
 import fcntl
+import logging
 import signal
 import traceback
 
 _RELAY_BUFFER_SIZE = 64 * 1024  # 64 KiB
+logger = logging.getLogger(__name__)
 
 
 def run(coro, debug=False):
@@ -36,7 +38,7 @@ async def run_concurrently(*coros):
     """Run coros concurrently and cancel others on error.
 
     Like `asyncio.gather()`, but if one task raises an exception, all other
-    tasks are cancelled.
+    tasks are canceled.
     """
 
     tasks = [asyncio.create_task(coro) for coro in coros]
@@ -59,19 +61,16 @@ async def background_task(coro):
 
 
 async def cancel_tasks(tasks):
-    """Cancel tasks and wait until all are cancelled"""
+    """Cancel tasks and wait until all are canceled"""
 
-    canceled_tasks = []
     for task in tasks:
         if not task.done():
             task.cancel()
-            canceled_tasks.append(task)
 
-    for task in canceled_tasks:
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning("Ignoring error in canceled task: %s", result)
 
 
 @contextlib.asynccontextmanager
