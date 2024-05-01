@@ -54,7 +54,7 @@ test = [
     "pylint",
     "pylint-pytest",
     "pytest",
-    "pytest-asyncio == 0.21.1",
+    "pytest-asyncio ~= 0.21.2",
     "pytest-cov",
 ]
 docs = [
