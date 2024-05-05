@@ -35,6 +35,13 @@ py.install_sources(
 )
 
 py.install_sources(
+  'not_my_board/_auth/__init__.py',
+  'not_my_board/_auth/_openid.py',
+  'not_my_board/_auth/_login.py',
+  subdir: 'not_my_board/_auth',
+)
+
+py.install_sources(
   'not_my_board/cli/__init__.py',
   subdir: 'not_my_board/cli',
 )
