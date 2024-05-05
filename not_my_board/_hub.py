@@ -70,18 +70,20 @@ async def _handle_lifespan(scope, receive, send):
 @asgineer.to_asgi
 async def _handle_request(request):
     hub = request.scope["state"]["hub"]
+    response = (404, {}, "Page not found")
 
     if isinstance(request, asgineer.WebsocketRequest):
         if request.path == "/ws-agent":
-            return await _handle_agent(hub, request)
+            await _handle_agent(hub, request)
         elif request.path == "/ws-exporter":
-            return await _handle_exporter(hub, request)
-        await request.close()
-        return
+            await _handle_exporter(hub, request)
+        else:
+            await request.close()
+        response = None
     elif isinstance(request, asgineer.HttpRequest):
         if request.path == "/api/v1/places":
-            return await hub.get_places()
-    return 404, {}, "Page not found"
+            response = await hub.get_places()
+    return response
 
 
 async def _handle_agent(hub, ws):
