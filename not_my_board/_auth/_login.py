@@ -6,7 +6,7 @@ import pathlib
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._util as util
 
-from ._openid import AuthRequest
+from ._openid import AuthRequest, ensure_fresh
 
 
 class LoginFlow(util.ContextStack):
@@ -69,6 +69,17 @@ class _HubNotifications:
 
     async def oidc_callback_registered(self):
         self._ready_event.set()
+
+
+async def get_id_token(hub_url, http_client):
+    async with _TokenStore() as token_store:
+        id_token, refresh_token = token_store.get_tokens(hub_url)
+        id_token, refresh_token = await ensure_fresh(
+            id_token, refresh_token, http_client
+        )
+        token_store.save_tokens(hub_url, id_token, refresh_token)
+
+    return id_token
 
 
 class _TokenStore(util.ContextStack):

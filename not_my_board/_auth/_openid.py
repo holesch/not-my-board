@@ -108,6 +108,41 @@ class AuthRequest:
         return response["id_token"], response["refresh_token"], claims
 
 
+async def ensure_fresh(id_token, refresh_token, http_client):
+    if _needs_refresh(id_token):
+        claims = jwt.decode(id_token, options={"verify_signature": False})
+        issuer_url = claims["iss"]
+        client_id = claims["aud"]
+        identity_provider = await IdentityProvider.from_url(issuer_url, http_client)
+
+        params = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+        }
+        response = await http_client.post_form(identity_provider.token_endpoint, params)
+        return response["id_token"], response["refresh_token"]
+    else:
+        return id_token, refresh_token
+
+
+def _needs_refresh(id_token):
+    try:
+        jwt.decode(
+            id_token,
+            options={
+                "verify_signature": False,
+                "require": ["iss", "sub", "aud", "exp", "iat"],
+                "verify_exp": True,
+                "verify_iat": True,
+                "verify_nbf": True,
+            },
+        )
+    except Exception:
+        return True
+    return False
+
+
 async def verify(token, client_id, http_client):
     unverified_token = jwt.api_jwt.decode_complete(
         token, options={"verify_signature": False}
