@@ -48,8 +48,8 @@ async def _handle_lifespan(scope, receive, send):
                 else:
                     config = {}
 
-                hub = Hub()
-                await hub.startup(config)
+                hub = Hub(config)
+                await hub.startup()
                 scope["state"]["hub"] = hub
             except Exception as err:
                 await send({"type": "lifespan.startup.failed", "message": str(err)})
@@ -123,10 +123,10 @@ class Hub:
     _wait_queue = []
     _reservations = {}
 
-    def __init__(self):
-        self._id_generator = itertools.count(start=1)
+    def __init__(self, config=None):
+        if config is None:
+            config = {}
 
-    async def startup(self, config):
         if "log_level" in config:
             log_level_str = config["log_level"]
             log_level_map = {
@@ -140,6 +140,13 @@ class Hub:
             logging.basicConfig(
                 format="%(levelname)s: %(name)s: %(message)s", level=log_level
             )
+
+        self._config = config
+
+        self._id_generator = itertools.count(start=1)
+
+    async def startup(self):
+        pass
 
     async def shutdown(self):
         pass
