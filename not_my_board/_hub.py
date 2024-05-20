@@ -155,7 +155,14 @@ class Hub:
                 format="%(levelname)s: %(name)s: %(message)s", level=log_level
             )
 
-        self._config = config
+        auth_config = config.get("auth")
+        if auth_config:
+            required_keys = {"issuer", "client_id"}
+            optional_keys = {"show_claims"}
+            keys = required_keys | (optional_keys & auth_config.keys())
+            self._auth_info = {k: auth_config[k] for k in keys}
+        else:
+            self._auth_info = {}
 
         self._id_generator = itertools.count(start=1)
 
@@ -299,8 +306,7 @@ class Hub:
 
     @jsonrpc.hidden
     def auth_info(self):
-        # TODO check and filter config
-        return self._config.get("auth_info", {})
+        return self._auth_info
 
 
 def _unmap_ip(ip_str):
