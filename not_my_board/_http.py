@@ -196,7 +196,7 @@ class Client:
                     raise ProtocolError(f"Unexpected event: {event}")
 
     @contextlib.asynccontextmanager
-    async def websocket(self, url, auth=None):
+    async def websocket(self, url):
         url = self._parse_url(url)
 
         ws_scheme = "ws" if url.scheme == "http" else "wss"
@@ -206,26 +206,23 @@ class Client:
         protocol = websockets.ClientProtocol(ws_uri)
 
         async with self._connect(url) as (reader, writer):
-            async with _WebsocketConnection(protocol, reader, writer, auth) as con:
+            async with _WebsocketConnection(protocol, reader, writer) as con:
                 yield con
 
 
 class _WebsocketConnection:
     _close_timeout = 10
 
-    def __init__(self, protocol, reader, writer, auth=None):
+    def __init__(self, protocol, reader, writer):
         self._protocol = protocol
         self._reader = reader
         self._writer = writer
         self._chunks = []
         self._decoder = None
         self._send_lock = asyncio.Lock()
-        self._auth = auth
 
     async def __aenter__(self):
         request = self._protocol.connect()
-        if self._auth:
-            request.headers["Authorization"] = self._auth
 
         # sending handshake request
         self._protocol.send_request(request)
