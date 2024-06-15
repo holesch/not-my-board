@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 async def export(hub_url, place, ca_files):
     http_client = http.Client(ca_files)
     async with Exporter(hub_url, place, http_client) as exporter:
+        await exporter.register_place()
         await exporter.serve_forever()
 
 
@@ -54,22 +55,20 @@ class Exporter(util.ContextStack):
             util.Server(self._handle_client, port=self._place.port)
         )
 
-        url = f"{self._hub_url}/ws-exporter"
-        auth = "Bearer dummy-token-1"
-        self._ws_server = await stack.enter_async_context(
-            jsonrpc.WebsocketChannel(
-                url, self._http, start=False, auth=auth, api_obj=self
-            )
+        url = f"{self._hub_url}/ws"
+        self._hub = await stack.enter_async_context(
+            jsonrpc.WebsocketChannel(url, self._http, api_obj=self)
         )
 
     @jsonrpc.hidden
-    async def serve_forever(self):
-        await util.run_concurrently(
-            self._http_server.serve_forever(), self._ws_server.communicate_forever()
-        )
+    async def register_place(self):
+        place_id = await self._hub.register_place(self._place.dict())
+        logger.info("Place registered with ID %d", place_id)
+        return place_id
 
-    async def get_place(self):
-        return self._place.dict()
+    @jsonrpc.hidden
+    async def serve_forever(self):
+        await self._http_server.serve_forever()
 
     async def set_allowed_ips(self, ips):
         new_ips = set(map(ipaddress.ip_address, ips))

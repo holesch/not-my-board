@@ -38,9 +38,8 @@ class _AgentIO:
 
     @contextlib.asynccontextmanager
     async def hub_rpc(self):
-        auth = "Bearer dummy-token-1"
-        url = f"{self._hub_url}/ws-agent"
-        async with jsonrpc.WebsocketChannel(url, self._http, auth=auth) as rpc:
+        url = f"{self._hub_url}/ws"
+        async with jsonrpc.WebsocketChannel(url, self._http) as rpc:
             yield rpc
 
     @contextlib.asynccontextmanager

@@ -22,16 +22,15 @@ async def test_no_places_on_startup(hub):
 
 
 class FakeExporter:
-    def __init__(self, register_event):
-        self._register_event = register_event
+    def __init__(self, rpc):
+        rpc.set_api_object(self)
+        self._rpc = rpc
 
     async def communicate_forever(self):
-        # wait forever
-        await asyncio.Event().wait()
+        await self._rpc.communicate_forever()
 
-    async def get_place(self):
-        self._register_event.set()
-        return {
+    async def register_place(self):
+        place = {
             "port": 1234,
             "parts": [
                 {
@@ -47,6 +46,7 @@ class FakeExporter:
                 },
             ],
         }
+        await self._rpc.register_place(place)
 
     async def set_allowed_ips(self, ips):
         self._allowed_ips = ips
@@ -54,27 +54,6 @@ class FakeExporter:
     @property
     def allowed_ips(self):
         return self._allowed_ips
-
-
-# pylint: disable=redefined-outer-name
-@contextlib.asynccontextmanager
-async def register_exporter(hub, ip=DEFAULT_EXPORTER_IP):
-    register_event = asyncio.Event()
-    fake_exporter = FakeExporter(register_event)
-    coro = hub.exporter_communicate(ip, fake_exporter)
-    async with util.background_task(coro) as exporter_task:
-        async with util.timeout(2):
-            await register_event.wait()
-        yield fake_exporter, exporter_task
-
-
-async def test_register_exporter(hub):
-    async with register_exporter(hub):
-        places = await hub.get_places()
-        assert len(places["places"]) == 1
-
-    places = await hub.get_places()
-    assert len(places["places"]) == 0
 
 
 def fake_rpc_pair():
@@ -94,9 +73,31 @@ def fake_rpc_pair():
 
 # pylint: disable=redefined-outer-name
 @contextlib.asynccontextmanager
+async def register_exporter(hub, ip=DEFAULT_EXPORTER_IP):
+    rpc1, rpc2 = fake_rpc_pair()
+    fake_exporter = FakeExporter(rpc1)
+    hub_coro = hub.communicate(ip, rpc2)
+    exporter_coro = fake_exporter.communicate_forever()
+    async with util.background_task(hub_coro) as hub_connection:
+        async with util.background_task(exporter_coro):
+            await fake_exporter.register_place()
+            yield fake_exporter, hub_connection
+
+
+async def test_register_exporter(hub):
+    async with register_exporter(hub):
+        places = await hub.get_places()
+        assert len(places["places"]) == 1
+
+    places = await hub.get_places()
+    assert len(places["places"]) == 0
+
+
+# pylint: disable=redefined-outer-name
+@contextlib.asynccontextmanager
 async def register_agent(hub, ip=DEFAULT_AGENT_IP):
     rpc1, rpc2 = fake_rpc_pair()
-    coro = hub.agent_communicate(ip, rpc2)
+    coro = hub.communicate(ip, rpc2)
     async with util.background_task(coro):
         async with util.background_task(rpc1.communicate_forever()):
             yield rpc1

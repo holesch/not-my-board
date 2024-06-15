@@ -28,7 +28,7 @@ class LoginFlow(util.ContextStack):
         ready_event = asyncio.Event()
         notification_api = _HubNotifications(ready_event)
 
-        channel_url = f"{self._hub_url}/ws-login"
+        channel_url = f"{self._hub_url}/ws"
         hub = jsonrpc.WebsocketChannel(
             channel_url, self._http, api_obj=notification_api
         )
