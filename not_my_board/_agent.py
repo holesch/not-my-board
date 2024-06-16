@@ -14,6 +14,7 @@ import weakref
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
+import not_my_board._auth as auth
 import not_my_board._http as http
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
@@ -108,6 +109,9 @@ class _AgentIO:
             client_w.write(trailing_data)
             await client_w.drain()
             await util.relay_streams(client_r, client_w, remote_r, remote_w)
+
+    async def get_id_token(self):
+        return await auth.get_id_token(self._hub_url, self._http)
 
 
 class Agent(util.ContextStack):
@@ -225,6 +229,9 @@ class Agent(util.ContextStack):
             for name, reservation in self._reservations.items()
             for tunnel in reservation.tunnels
         ]
+
+    async def get_id_token(self):
+        return await self._io.get_id_token()
 
 
 def _filter_places(import_description, places):
