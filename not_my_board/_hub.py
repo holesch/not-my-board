@@ -3,15 +3,20 @@
 import asyncio
 import contextlib
 import contextvars
+import datetime
+import functools
 import ipaddress
 import itertools
 import logging
 import pathlib
 import random
-import traceback
+from dataclasses import dataclass
+from typing import Dict, Union
 
 import asgineer
 
+import not_my_board._auth as auth
+import not_my_board._http as http
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
 import not_my_board._util as util
@@ -19,6 +24,7 @@ import not_my_board._util as util
 logger = logging.getLogger(__name__)
 client_ip_var = contextvars.ContextVar("client_ip")
 connection_id_var = contextvars.ContextVar("connection_id")
+authenticator_var = contextvars.ContextVar("authenticator")
 
 
 def run_hub():
@@ -47,7 +53,7 @@ async def _handle_lifespan(scope, receive, send):
                 else:
                     config = {}
 
-                hub = Hub(config)
+                hub = Hub(config, http.Client())
                 await hub.startup()
                 scope["state"]["hub"] = hub
             except Exception as err:
@@ -94,6 +100,19 @@ async def _handle_websocket(hub, ws):
     await hub.communicate(client_ip, channel)
 
 
+def require_role(role):
+    def decorator(func):
+        @functools.wraps(func)
+        async def require_role_wrapper(*args, **kwargs):
+            authenticator = authenticator_var.get()
+            await authenticator.require_role(role)
+            return await func(*args, **kwargs)
+
+        return require_role_wrapper
+
+    return decorator
+
+
 class Hub:
     _places = {}
     _exporters = {}
@@ -102,7 +121,8 @@ class Hub:
     _reservations = {}
     _pending_callbacks = {}
 
-    def __init__(self, config=None):
+    # pylint: disable=too-many-locals
+    def __init__(self, config=None, http_client=None):
         if config is None:
             config = {}
 
@@ -126,8 +146,26 @@ class Hub:
             optional_keys = {"show_claims"}
             keys = required_keys | (optional_keys & auth_config.keys())
             self._auth_info = {k: auth_config[k] for k in keys}
+
+            trusted_issuers = {auth_config["issuer"]}
+            for permission in auth_config["permissions"]:
+                issuer = permission["claims"].get("iss")
+                if issuer:
+                    trusted_issuers.add(issuer)
+
+            def make_permission(d):
+                d["claims"].setdefault("iss", auth_config["issuer"])
+                return Permission.from_dict(d)
+
+            self._permissions = [make_permission(d) for d in auth_config["permissions"]]
+            self._validator = auth.Validator(
+                auth_config["client_id"], http_client, trusted_issuers
+            )
         else:
+            logger.warning("Authentication is disabled")
             self._auth_info = {}
+            self._permissions = []
+            self._validator = None
 
         self._id_generator = itertools.count(start=1)
 
@@ -146,18 +184,21 @@ class Hub:
     @jsonrpc.hidden
     async def communicate(self, client_ip, channel):
         client_ip_var.set(client_ip)
-        async with self._connection_context():
+        async with self._connection_context(channel):
             channel.set_api_object(self)
             await channel.communicate_forever()
 
     @contextlib.asynccontextmanager
-    async def _connection_context(self):
+    async def _connection_context(self, channel):
         id_ = next(self._id_generator)
         connection_id_var.set(id_)
         self._reservations[id_] = set()
+        authenticator = Authenticator(self._permissions, self._validator, channel)
+        authenticator_var.set(authenticator)
 
         try:
-            yield
+            async with authenticator:
+                yield
         finally:
             if id_ in self._places:
                 logger.info("Place disappeared: %d", id_)
@@ -176,6 +217,7 @@ class Hub:
                 if isinstance(result, Exception):
                     logger.warning("Error while deregistering agent: %s", result)
 
+    @require_role("exporter")
     async def register_place(self, export_desc):
         id_ = connection_id_var.get()
         client_ip = client_ip_var.get()
@@ -190,6 +232,7 @@ class Hub:
         logger.info("New place registered: %d", id_)
         return id_
 
+    @require_role("importer")
     async def reserve(self, candidate_ids):
         id_ = connection_id_var.get()
         existing_candidates = {c_id for c_id in candidate_ids if c_id in self._places}
@@ -224,6 +267,7 @@ class Hub:
 
         return reserved_id
 
+    @require_role("importer")
     async def return_reservation(self, place_id):
         id_ = connection_id_var.get()
         self._reservations[id_].remove(place_id)
@@ -231,7 +275,12 @@ class Hub:
             for candidates, agent_id, future in self._wait_queue:
                 if place_id in candidates and not future.done():
                     self._reservations[agent_id].add(place_id)
-                    logger.info("Place %d returned by %d was reserved by %d", place_id, id_, agent_id)
+                    logger.info(
+                        "Place %d returned by %d was reserved by %d",
+                        place_id,
+                        id_,
+                        agent_id,
+                    )
                     future.set_result(place_id)
                     break
             else:
@@ -263,6 +312,120 @@ class Hub:
     @jsonrpc.hidden
     def auth_info(self):
         return self._auth_info
+
+
+class Authenticator(util.ContextStack):
+    _leeway = datetime.timedelta(seconds=30)
+    _timeout = datetime.timedelta(seconds=30)
+
+    def __init__(self, permissions, validator, channel):
+        self._permissions = permissions
+        self._validator = validator
+        self._channel = channel
+        self._required_roles = set()
+        self._refresh_start_event = asyncio.Event()
+        self._roles = None
+        self._expires = None
+        self._roles_lock = asyncio.Lock()
+
+    async def _context_stack(self, stack):
+        if self._validator:
+            coro = self._refresh_token()
+            await stack.enter_async_context(util.background_task(coro))
+
+    async def require_role(self, role):
+        if not self._validator:
+            # authentication is disabled
+            return
+
+        def check(roles):
+            if role not in roles:
+                raise RuntimeError(f'Permission denied: requires role "{role}"')
+
+        async with self._roles_lock:
+            if self._roles is None:
+                roles, expires = await self._request_roles()
+                check(roles)
+                self._roles = roles
+                self._expires = expires
+                self._refresh_start_event.set()
+            else:
+                check(self._roles)
+
+            self._required_roles.add(role)
+
+    async def _request_roles(self):
+        id_token = await self._channel.get_id_token()
+        token_claims = await self._validator.extract_claims(
+            id_token, leeway=self._leeway.total_seconds()
+        )
+        roles = set()
+
+        for permission in self._permissions:
+            if permission.roles <= roles:
+                # permission rule has no new roles, skip
+                continue
+
+            for key, required_claim in permission.claims.items():
+                token_claim = token_claims.get(key)
+                if isinstance(required_claim, set):
+                    if (
+                        not isinstance(token_claim, list)
+                        or set(token_claim) < required_claim
+                    ):
+                        break
+                else:
+                    if token_claim != required_claim:
+                        break
+            else:
+                # Token has all needed claims. Add roles.
+                roles.update(permission.roles)
+
+        expires = datetime.datetime.fromtimestamp(
+            int(token_claims["exp"]), tz=datetime.timezone.utc
+        )
+        return roles, expires
+
+    async def _refresh_token(self):
+        await self._refresh_start_event.wait()
+
+        # This is run as a background task. Every exception closes the
+        # connection.
+        while True:
+            now = datetime.datetime.now(tz=datetime.timezone.utc)
+            delay = (self._expires - now) + self._leeway
+            logger.debug(
+                "Token expires at %s, refreshing in %d seconds",
+                str(self._expires),
+                delay.total_seconds(),
+            )
+            await asyncio.sleep(delay.total_seconds())
+
+            async with util.timeout(self._timeout.total_seconds()):
+                roles, expires = await self._request_roles()
+
+            self._roles = roles
+            self._expires = expires
+
+            if self._required_roles > self._roles:
+                raise RuntimeError("Permission lost")
+
+
+@dataclass
+class Permission:
+    claims: Dict[str, Union[dict, str, int, float, set, bool]]
+    roles: set
+
+    @classmethod
+    def from_dict(cls, d):
+        claims = {}
+        for key, value in d["claims"].items():
+            if isinstance(value, list):
+                claims[key] = set(value)
+            else:
+                claims[key] = value
+
+        return cls(claims, set(d["roles"]))
 
 
 def _unmap_ip(ip_str):

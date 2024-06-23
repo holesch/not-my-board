@@ -150,7 +150,7 @@ class Validator:
         self._http = http_client
         self._trusted_issuers = trusted_issuers
 
-    async def extract_claims(self, id_token):
+    async def extract_claims(self, id_token, leeway=0):
         unverified_token = jwt.api_jwt.decode_complete(
             id_token, options={"verify_signature": False}
         )
@@ -177,4 +177,6 @@ class Validator:
             key=signing_key.key,
             algorithms="RS256",
             audience=self._client_id,
+            options={"require": ["sub", "exp", "iat"]},
+            leeway=leeway,
         )
