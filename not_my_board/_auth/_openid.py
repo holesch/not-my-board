@@ -99,7 +99,8 @@ class AuthRequest:
                 f'Expected token type "Bearer", got "{response["token_type"]}"'
             )
 
-        claims = await verify(response["id_token"], self.client_id, http_client)
+        validator = Validator(self.client_id, http_client)
+        claims = await validator.extract_claims(response["id_token"])
         if claims["nonce"] != self.nonce:
             raise RuntimeError(
                 "Nonce in the ID token doesn't match the one in the authorization request"
@@ -143,27 +144,37 @@ def _needs_refresh(id_token):
     return False
 
 
-async def verify(token, client_id, http_client):
-    unverified_token = jwt.api_jwt.decode_complete(
-        token, options={"verify_signature": False}
-    )
-    kid = unverified_token["header"]["kid"]
-    issuer = unverified_token["payload"]["iss"]
+class Validator:
+    def __init__(self, client_id, http_client, trusted_issuers=None):
+        self._client_id = client_id
+        self._http = http_client
+        self._trusted_issuers = trusted_issuers
 
-    identity_provider = await IdentityProvider.from_url(issuer, http_client)
-    jwk_set_raw = await http_client.get_json(identity_provider.jwks_uri)
-    jwk_set = jwt.PyJWKSet.from_dict(jwk_set_raw)
+    async def extract_claims(self, id_token):
+        unverified_token = jwt.api_jwt.decode_complete(
+            id_token, options={"verify_signature": False}
+        )
+        key_id = unverified_token["header"]["kid"]
+        issuer = unverified_token["payload"]["iss"]
 
-    for key in jwk_set.keys:
-        if key.public_key_use in ["sig", None] and key.key_id == kid:
-            signing_key = key
-            break
-    else:
-        raise RuntimeError(f'Unable to find a signing key that matches "{kid}"')
+        if self._trusted_issuers is not None:
+            if issuer not in self._trusted_issuers:
+                raise RuntimeError(f"Unknown issuer: {issuer}")
 
-    return jwt.decode(
-        token,
-        key=signing_key.key,
-        algorithms="RS256",
-        audience=client_id,
-    )
+        identity_provider = await IdentityProvider.from_url(issuer, self._http)
+        jwk_set_raw = await self._http.get_json(identity_provider.jwks_uri)
+        jwk_set = jwt.PyJWKSet.from_dict(jwk_set_raw)
+
+        for key in jwk_set.keys:
+            if key.public_key_use in ["sig", None] and key.key_id == key_id:
+                signing_key = key
+                break
+        else:
+            raise RuntimeError(f'Unable to find a signing key that matches "{key_id}"')
+
+        return jwt.decode(
+            id_token,
+            key=signing_key.key,
+            algorithms="RS256",
+            audience=self._client_id,
+        )
