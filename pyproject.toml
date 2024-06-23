@@ -81,6 +81,7 @@ load-plugins = "pylint_pytest"
 disable = [
     "attribute-defined-outside-init",
     "broad-exception-caught",
+    "contextmanager-generator-missing-cleanup",
     "fixme",
     "missing-class-docstring",
     "missing-function-docstring",

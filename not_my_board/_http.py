@@ -78,6 +78,7 @@ class Client:
 
             async def receive_all():
                 error_status = None
+                error_data = b""
                 while True:
                     event = conn.next_event()
                     if event is h11.NEED_DATA:
@@ -85,7 +86,6 @@ class Client:
                     elif isinstance(event, h11.Response):
                         if event.status_code != 200:
                             error_status = event.status_code
-                            error_data = b""
                     elif isinstance(event, h11.Data):
                         if error_status is None:
                             yield event.data
