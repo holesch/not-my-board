@@ -4,7 +4,7 @@
 name = "not-my-board"
 description = "Tool to setup, manage and use a board farm "
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {file = "LICENSE.txt"}
 authors = [
     {name = "Simon Holesch", email = "simon@holesch.de"},
