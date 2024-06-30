@@ -18,20 +18,21 @@ import not_my_board._util as util
 logger = logging.getLogger(__name__)
 
 
-async def export(hub_url, place, ca_files):
+async def export(hub_url, place, ca_files, token_store_path):
     http_client = http.Client(ca_files)
-    async with Exporter(hub_url, place, http_client) as exporter:
+    async with Exporter(hub_url, place, http_client, token_store_path) as exporter:
         await exporter.register_place()
         await exporter.serve_forever()
 
 
 class Exporter(util.ContextStack):
-    def __init__(self, hub_url, export_desc_path, http_client):
+    def __init__(self, hub_url, export_desc_path, http_client, token_store_path):
         self._hub_url = hub_url
         self._ip_to_tasks_map = {}
         export_desc_content = export_desc_path.read_text()
         self._place = models.ExportDesc(**util.toml_loads(export_desc_content))
         self._http = http_client
+        self._token_store_path = token_store_path
 
         tcp_targets = {
             f"{tcp.host}:{tcp.port}".encode()
@@ -126,7 +127,9 @@ class Exporter(util.ContextStack):
                 await util.relay_streams(client_r, client_w, remote_r, remote_w)
 
     async def get_id_token(self):
-        return await auth.get_id_token(self._hub_url, self._http)
+        return await auth.get_id_token(
+            self._token_store_path, self._hub_url, self._http
+        )
 
 
 def format_date_time(dt=None):
