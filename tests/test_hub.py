@@ -7,6 +7,8 @@ import not_my_board._hub as hubmodule
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._util as util
 
+from .util import fake_rpc_pair
+
 DEFAULT_EXPORTER_IP = "3.1.1.1"
 DEFAULT_AGENT_IP = "6.1.1.1"
 
@@ -54,21 +56,6 @@ class FakeExporter:
     @property
     def allowed_ips(self):
         return self._allowed_ips
-
-
-def fake_rpc_pair():
-    rpc1_to_rpc2 = asyncio.Queue()
-    rpc2_to_rpc1 = asyncio.Queue()
-
-    async def receive_iter(queue):
-        while True:
-            data = await queue.get()
-            yield data
-            queue.task_done()
-
-    rpc1 = jsonrpc.Channel(rpc1_to_rpc2.put, receive_iter(rpc2_to_rpc1))
-    rpc2 = jsonrpc.Channel(rpc2_to_rpc1.put, receive_iter(rpc1_to_rpc2))
-    return rpc1, rpc2
 
 
 # pylint: disable=redefined-outer-name

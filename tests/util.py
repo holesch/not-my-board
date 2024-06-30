@@ -4,6 +4,7 @@ import contextlib
 import pathlib
 import sys
 
+import not_my_board._jsonrpc as jsonrpc
 import not_my_board._util as util
 
 VMs = collections.namedtuple("VMs", ["hub", "exporter", "client"])
@@ -153,3 +154,18 @@ async def wait_for_ports(*ports, timeout=7):
                 await asyncio.sleep(0.1)
                 continue
             break
+
+
+def fake_rpc_pair():
+    rpc1_to_rpc2 = asyncio.Queue()
+    rpc2_to_rpc1 = asyncio.Queue()
+
+    async def receive_iter(queue):
+        while True:
+            data = await queue.get()
+            yield data
+            queue.task_done()
+
+    rpc1 = jsonrpc.Channel(rpc1_to_rpc2.put, receive_iter(rpc2_to_rpc1))
+    rpc2 = jsonrpc.Channel(rpc2_to_rpc1.put, receive_iter(rpc1_to_rpc2))
+    return rpc1, rpc2
