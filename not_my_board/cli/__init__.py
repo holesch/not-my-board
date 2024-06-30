@@ -19,6 +19,9 @@ except ModuleNotFoundError:
     __version__ = "dev"
 
 
+TOKEN_STORE_PATH = "/var/lib/not-my-board/auth_tokens.json"
+
+
 # pylint: disable=too-many-statements
 def main():
     parser = argparse.ArgumentParser(description="Setup, manage and use a board farm")
@@ -155,11 +158,11 @@ def _hub_command(_):
 
 
 async def _export_command(args):
-    await export(args.hub_url, args.export_description, args.cacert)
+    await export(args.hub_url, args.export_description, args.cacert, TOKEN_STORE_PATH)
 
 
 async def _agent_command(args):
-    await agent(args.hub_url, args.cacert)
+    await agent(args.hub_url, args.cacert, TOKEN_STORE_PATH)
 
 
 async def _reserve_command(args):
@@ -215,7 +218,8 @@ async def _uevent_command(args):
 
 async def _login_command(args):
     http_client = http.Client(args.cacert)
-    async with auth.LoginFlow(args.hub_url, http_client) as login:
+    token_store_path = "/var/lib/not-my-board/auth_tokens.json"
+    async with auth.LoginFlow(args.hub_url, http_client, token_store_path) as login:
         print(
             f"{Format.BOLD}"
             "Open the following link in your browser and log in:"

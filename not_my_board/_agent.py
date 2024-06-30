@@ -26,16 +26,17 @@ USBIP_REMOTE = ("usb.not-my-board.localhost", 3240)
 Address = Tuple[str, int]
 
 
-async def agent(hub_url, ca_files):
-    io = _AgentIO(hub_url, http.Client(ca_files))
+async def agent(hub_url, ca_files, token_store_path):
+    io = _AgentIO(hub_url, http.Client(ca_files), token_store_path)
     async with Agent(hub_url, io) as agent_:
         await agent_.serve_forever()
 
 
 class _AgentIO:
-    def __init__(self, hub_url, http_client):
+    def __init__(self, hub_url, http_client, token_store_path):
         self._hub_url = hub_url
         self._http = http_client
+        self._token_store_path = token_store_path
 
     @contextlib.asynccontextmanager
     async def hub_rpc(self):
@@ -111,7 +112,9 @@ class _AgentIO:
             await util.relay_streams(client_r, client_w, remote_r, remote_w)
 
     async def get_id_token(self):
-        return await auth.get_id_token(self._hub_url, self._http)
+        return await auth.get_id_token(
+            self._token_store_path, self._hub_url, self._http
+        )
 
 
 class Agent(util.ContextStack):

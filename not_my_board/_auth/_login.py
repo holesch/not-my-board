@@ -10,11 +10,11 @@ from ._openid import AuthRequest, ensure_fresh
 
 
 class LoginFlow(util.ContextStack):
-    def __init__(self, hub_url, http_client):
+    def __init__(self, hub_url, http_client, token_store_path):
         self._hub_url = hub_url
         self._http = http_client
         self._show_claims = None
-        self._token_store = _TokenStore()
+        self._token_store = _TokenStore(token_store_path)
 
     async def _context_stack(self, stack):
         url = f"{self._hub_url}/api/v1/auth-info"
@@ -49,8 +49,8 @@ class LoginFlow(util.ContextStack):
             auth_response, self._http
         )
 
-        async with _TokenStore() as token_store:
-            token_store.save_tokens(self._hub_url, id_token, refresh_token)
+        async with self._token_store:
+            self._token_store.save_tokens(self._hub_url, id_token, refresh_token)
 
         if self._show_claims is not None:
             # filter claims to only show relevant ones
@@ -71,8 +71,9 @@ class _HubNotifications:
         self._ready_event.set()
 
 
-async def get_id_token(hub_url, http_client):
-    async with _TokenStore() as token_store:
+async def get_id_token(token_store_path, hub_url, http_client):
+    token_store = _TokenStore(token_store_path)
+    async with token_store:
         id_token, refresh_token = token_store.get_tokens(hub_url)
         id_token, refresh_token = await ensure_fresh(
             id_token, refresh_token, http_client
@@ -83,15 +84,17 @@ async def get_id_token(hub_url, http_client):
 
 
 class _TokenStore(util.ContextStack):
-    _path = pathlib.Path("/var/lib/not-my-board/auth_tokens.json")
+    def __init__(self, path_str=None):
+        path = pathlib.Path(path_str)
 
-    def __init__(self):
-        if not self._path.exists():
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.touch(mode=0o600)
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch(mode=0o600)
 
-        if not os.access(self._path, os.R_OK | os.W_OK):
-            raise RuntimeError(f"Not allowed to access {self._path}")
+        if not os.access(path, os.R_OK | os.W_OK):
+            raise RuntimeError(f"Not allowed to access {path}")
+
+        self._path = path
 
     async def _context_stack(self, stack):
         # pylint: disable-next=consider-using-with  # false positive
