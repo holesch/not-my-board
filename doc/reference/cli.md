@@ -11,7 +11,7 @@ Here's a description of all the commands and options `not-my-board` supports.
 **`export`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] *hub_url* *export_description*
 : Make connected boards and equipment available in the board farm.
 
-**`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`**\] *hub_url*
+**`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] *hub_url*
 : Start an *Agent*.
 
 **`reserve`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--with-name`** *name*\] *import_description*
