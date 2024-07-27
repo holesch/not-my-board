@@ -226,6 +226,14 @@ async def _login_command(args):
             f"{Format.RESET}"
         )
         print(login.login_url)
+
+        if args.cacert:
+            print(
+                f"{Format.YELLOW}"
+                "You might need to accept an unknown certificate in the browser."
+                f"{Format.RESET}"
+            )
+
         claims = await login.finish()
 
         msg = "Login was successful"
