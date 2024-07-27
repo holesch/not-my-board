@@ -38,6 +38,11 @@ interface with `ufw`, use the following command:
 $ sudo ufw allow in on eno1 to any port 29200:29299 proto tcp comment 'not-my-board exporter'
 ```
 
+If authentication is configured in the *Hub*, log in:
+```console
+$ sudo not-my-board login https://<my-hub-address>
+```
+
 Finally enable and start the `systemd` service:
 ```console
 $ sudo systemctl enable --now not-my-board-exporter@example

@@ -32,6 +32,11 @@ ExecStart=/usr/local/bin/not-my-board agent https://<my-hub-address>
 WantedBy=multi-user.target
 ```
 
+If authentication is configured in the *Hub*, log in:
+```console
+$ sudo not-my-board login https://<my-hub-address>
+```
+
 Enable and start the service:
 ```console
 $ sudo systemctl enable --now not-my-board-agent

@@ -14,6 +14,9 @@ Here's a description of all the commands and options `not-my-board` supports.
 **`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] *hub_url*
 : Start an *Agent*.
 
+**`login`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`--cacert`** *cacert*\] *hub_url*
+: Login user.
+
 **`reserve`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--with-name`** *name*\] *import_description*
 : Reserve a *Place*.
 
