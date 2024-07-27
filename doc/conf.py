@@ -29,6 +29,7 @@ myst_enable_extensions = [
     "deflist",
     "colon_fence",
 ]
+myst_heading_anchors = 3
 
 # exclude prompts and output from copies
 copybutton_exclude = ".linenos, .gp, .go"
