@@ -9,10 +9,10 @@ import subprocess
 project_dir = pathlib.Path(__file__).parents[1]
 
 project = "not-my-board"
-copyright = "2023-present, Simon Holesch"
+copyright = "2023-present, Simon Holesch"  # noqa: A001
 author = "Simon Holesch"
 release = subprocess.run(
-    "scripts/get_version", cwd=project_dir, capture_output=True, text=True, check=True
+    "./scripts/get_version", cwd=project_dir, capture_output=True, text=True, check=True
 ).stdout.strip()
 
 extensions = [

@@ -57,6 +57,7 @@ test = [
     "pytest",
     "pytest-asyncio ~= 0.21.2",
     "pytest-cov",
+    "ruff",
 ]
 docs = [
     "furo",
@@ -111,3 +112,100 @@ generated-members = [
 
 [tool.isort]
 profile = "black"
+
+[tool.ruff.lint]
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle
+    "E", "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP",
+    # flake8-2020
+    "YTT",
+    # flake8-async
+    "ASYNC",
+    # flake8-bandit
+    "S",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-comprehensions
+    "C4",
+    # flake8-implicit-str-concat
+    "ISC",
+    # flake8-logging
+    "LOG",
+    # flake8-logging-format
+    "G",
+    # flake8-pie
+    "PIE",
+    # flake8-print
+    "T20",
+    # flake8-pytest-style
+    "PT",
+    # flake8-raise
+    "RSE",
+    # flake8-simplify
+    "SIM",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # Pylint
+    "PL",
+    # flynt
+    "FLY",
+    # refurb
+    "FURB",
+    # Ruff-specific rules
+    "RUF",
+]
+ignore = [
+    # "Async functions should not open files with blocking methods like open"
+    # -> doesn't seem to be a problem now, might revisit later
+    "ASYNC230",
+    # "Line too long"
+    # -> complains for long strings, rely on black
+    "E501",
+    # "for loop variable overwritten by assignment target"
+    "PLW2901",
+    # "open() should be replaced by Path.open()"
+    # -> just creating a Path object to open a file is overkill
+    "PTH123",
+    # "subprocess call: check for execution of untrusted input"
+    # -> false positives
+    "S603",
+    # "Use ternary operator instead of if-else-block"
+    # -> can make the code less readable
+    "SIM108",
+    # "Use a single with statement with multiple contexts instead of nested
+    #  with statements"
+    # -> only useful with Python version >= 3.10, when you can break the
+    #    statement into multiple lines
+    "SIM117",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    # "{name} imported but unused"
+    # -> modules are imported in __init__.py to re-export them
+    "F401",
+]
+"tests/**.py" = [
+    # "Magic value used in comparison"
+    # -> magic values are OK for tests
+    "PLR2004",
+    # "pytest.raises() block should contain a single simple statement"
+    # -> there are a few cases, that catch the exception raised in a context
+    #    manager (util.background_task)
+    "PT012",
+    # "Use of assert detected"
+    # -> usage is expected in tests
+    "S101",
+]

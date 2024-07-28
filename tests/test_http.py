@@ -91,7 +91,7 @@ async def test_proxy_connect_https(tinyproxy):
 
 
 @pytest.mark.parametrize(
-    "host,no_proxy_env,expected",
+    ("host", "no_proxy_env", "expected"),
     [
         # Test cases taken from curl
         ("www.example.com", "localhost,.example.com,.example.de", True),

@@ -22,6 +22,9 @@ import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
 UTF8Decoder = codecs.getincrementaldecoder("utf-8")
+STATUS_OK = 200
+STATUS_FORBIDDEN = 403
+STATUS_METHOD_NOT_ALLOWED = 405
 
 
 class ProtocolError(Exception):
@@ -87,7 +90,7 @@ class Client:
                     if event is h11.NEED_DATA:
                         conn.receive_data(await reader.read(4096))
                     elif isinstance(event, h11.Response):
-                        if event.status_code != 200:
+                        if event.status_code != STATUS_OK:
                             error_status = event.status_code
                     elif isinstance(event, h11.Data):
                         if error_status is None:
@@ -99,7 +102,7 @@ class Client:
 
                 if error_status is not None:
                     raise ProtocolError(
-                        f"Expected status code 200, got {error_status}: {error_data}"
+                        f"Expected status code {STATUS_OK}, got {error_status}: {error_data}"
                     )
 
             content = b"".join([data async for data in receive_all()])
@@ -188,9 +191,9 @@ class Client:
                     conn.receive_data(await reader.read(4096))
                 elif isinstance(event, h11.Response):
                     response = event
-                    if response.status_code != 200:
+                    if response.status_code != STATUS_OK:
                         raise ProtocolError(
-                            f"Expected status code 200, got {event.status_code}"
+                            f"Expected status code {STATUS_OK}, got {event.status_code}"
                         )
 
                     yield reader, writer, conn.trailing_data[0]
@@ -329,9 +332,8 @@ class _WebsocketConnection:
             if data:
                 self._writer.write(data)
                 await self._writer.drain()
-            else:
-                if self._writer.can_write_eof():
-                    self._writer.write_eof()
+            elif self._writer.can_write_eof():
+                self._writer.write_eof()
 
 
 @dataclass

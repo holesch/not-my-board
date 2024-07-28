@@ -5,7 +5,6 @@ import contextlib
 import functools
 import ipaddress
 import logging
-import os
 import pathlib
 import shutil
 import traceback
@@ -50,7 +49,7 @@ class _AgentIO:
 
         connection_handler = functools.partial(self._handle_unix_client, api_obj)
         async with util.UnixServer(connection_handler, socket_path) as unix_server:
-            os.chmod(socket_path, 0o660)
+            socket_path.chmod(0o660)
             try:
                 shutil.chown(socket_path, group="not-my-board")
             except Exception as e:

@@ -97,10 +97,9 @@ class UsbIpDevice(util.ContextStack):
         self._refresh_event.set()
 
     async def _context_stack(self, stack):
-        async with contextlib.AsyncExitStack() as stack:
-            await stack.enter_async_context(self._lock)
-            await self.available()
-            stack.callback(self.stop_export)
+        await stack.enter_async_context(self._lock)
+        await self.available()
+        stack.callback(self.stop_export)
 
     def stop_export(self):
         if self._is_exported:
@@ -203,15 +202,15 @@ class UsbIpDevice(util.ContextStack):
     usbip_status = _SysfsFileInt()
     busnum = _SysfsFileInt()
     devnum = _SysfsFileInt()
-    idVendor = _SysfsFileHex()
-    idProduct = _SysfsFileHex()
-    bcdDevice = _SysfsFileHex()
-    bDeviceClass = _SysfsFileHex()
-    bDeviceSubClass = _SysfsFileHex()
-    bDeviceProtocol = _SysfsFileHex()
-    bConfigurationValue = _SysfsFileHex(default=0)
-    bNumConfigurations = _SysfsFileHex()
-    bNumInterfaces = _SysfsFileHex(default=0)
+    idVendor = _SysfsFileHex()  # noqa: N815
+    idProduct = _SysfsFileHex()  # noqa: N815
+    bcdDevice = _SysfsFileHex()  # noqa: N815
+    bDeviceClass = _SysfsFileHex()  # noqa: N815
+    bDeviceSubClass = _SysfsFileHex()  # noqa: N815
+    bDeviceProtocol = _SysfsFileHex()  # noqa: N815
+    bConfigurationValue = _SysfsFileHex(default=0)  # noqa: N815
+    bNumConfigurations = _SysfsFileHex()  # noqa: N815
+    bNumInterfaces = _SysfsFileHex(default=0)  # noqa: N815
 
 
 async def _exec(*args, **kwargs):
@@ -296,11 +295,10 @@ def _port_num_to_vhci_port(port_num, speed):
 
 def detach(vhci_port):
     detach_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/detach")
-    try:
+
+    # ignore error, if not attached anymore
+    with contextlib.suppress(OSError):
         detach_path.write_text(f"{vhci_port}")
-    except OSError:
-        # not attached anymore
-        pass
 
 
 async def refresh_vhci_status():
@@ -395,6 +393,7 @@ def serializable(cls):
     cls._struct = struct.Struct(format_str)
     cls._to_strip = to_strip
 
+    # ruff: noqa: N807
     def __bytes__(self):
         return self._struct.pack(
             *(getattr(self, f.name) for f in dataclasses.fields(self))
@@ -410,11 +409,10 @@ def serializable(cls):
                 if field.name in cls._to_strip:
                     value = value.rstrip(b"\0")
                 init_values.append(value)
-            else:
-                if value != field.default:
-                    raise ProtocolError(
-                        f"Expected {field.name}={field.default}, got={value}"
-                    )
+            elif value != field.default:
+                raise ProtocolError(
+                    f"Expected {field.name}={field.default}, got={value}"
+                )
 
         # pylint: disable=E1120
         # No value for argument 'cls': false positive
@@ -452,15 +450,15 @@ class ImportReply(Header):
     busnum: UInt32
     devnum: UInt32
     speed: UInt32
-    idVendor: UInt16
-    idProduct: UInt16
-    bcdDevice: UInt16
-    bDeviceClass: UInt8
-    bDeviceSubClass: UInt8
-    bDeviceProtocol: UInt8
-    bConfigurationValue: UInt8
-    bNumConfigurations: UInt8
-    bNumInterfaces: UInt8
+    idVendor: UInt16  # noqa: N815
+    idProduct: UInt16  # noqa: N815
+    bcdDevice: UInt16  # noqa: N815
+    bDeviceClass: UInt8  # noqa: N815
+    bDeviceSubClass: UInt8  # noqa: N815
+    bDeviceProtocol: UInt8  # noqa: N815
+    bConfigurationValue: UInt8  # noqa: N815
+    bNumConfigurations: UInt8  # noqa: N815
+    bNumInterfaces: UInt8  # noqa: N815
 
     @classmethod
     def from_device(cls, device):

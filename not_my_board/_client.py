@@ -2,13 +2,15 @@
 
 import asyncio
 import contextlib
+import logging
 import os
 import pathlib
-import sys
 
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
 import not_my_board._util as util
+
+logger = logging.getLogger(__name__)
 
 
 async def reserve(import_description, with_name=None):
@@ -71,7 +73,7 @@ async def uevent(devpath):
         with pipe.open("r+b", buffering=0) as f:
             f.write(b".")
     else:
-        print(f"Loading default driver: {devname}", file=sys.stderr)
+        logger.info("Loading default driver: %s", devname)
         probe_path = pathlib.Path("/sys/bus/usb/drivers_probe")
         probe_path.write_text(devname)
 
@@ -101,7 +103,7 @@ def _find_import_description(name, with_name=None):
             if not import_description_file.is_file():
                 raise ValueError(f"No import description file exists for name {name}")
 
-    reservation_name = import_description_file.stem if not with_name else with_name
+    reservation_name = with_name if with_name else import_description_file.stem
     import_description_content = util.toml_loads(import_description_file.read_text())
     import_description = models.ImportDesc(
         name=reservation_name, **import_description_content

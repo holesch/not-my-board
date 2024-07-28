@@ -159,7 +159,7 @@ class HttpProxyConnection:
         self._allowed_targets = allowed_targets
 
     async def deny_request(self):
-        await self._send_response(403, self._msg_wrong_ip)
+        await self._send_response(http.STATUS_FORBIDDEN, self._msg_wrong_ip)
 
     async def receive_target(self):
         try:
@@ -172,16 +172,22 @@ class HttpProxyConnection:
                     request = event
                     if request.method == b"CONNECT":
                         if request.target in self._allowed_targets:
-                            await self._send_response(200)
+                            await self._send_response(http.STATUS_OK)
                             return request.target, self._conn.trailing_data[0]
                         else:
-                            await self._send_response(403, self._msg_wrong_target)
+                            await self._send_response(
+                                http.STATUS_FORBIDDEN, self._msg_wrong_target
+                            )
                             raise ProtocolError(
                                 f"Forbidden target requested: {request.target}"
                             )
                     else:
                         headers = [("Allow", "CONNECT")]
-                        await self._send_response(405, self._msg_wrong_method, headers)
+                        await self._send_response(
+                            http.STATUS_METHOD_NOT_ALLOWED,
+                            self._msg_wrong_method,
+                            headers,
+                        )
                         raise ProtocolError(f"Unexpected Method: {request.method}")
                 else:
                     raise ProtocolError(f"Unexpected Event: {event}")
@@ -217,11 +223,10 @@ class HttpProxyConnection:
 
         if body is not None:
             await self._send([res, h11.Data(data=body), end])
+        elif status != http.STATUS_OK:
+            await self._send([res, end])
         else:
-            if status != 200:
-                await self._send([res, end])
-            else:
-                await self._send([res])
+            await self._send([res])
 
     async def _send(self, events):
         data = b"".join([self._conn.send(event) for event in events])

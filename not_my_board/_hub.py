@@ -114,15 +114,15 @@ def require_role(role):
 
 
 class Hub:
-    _places = {}
-    _exporters = {}
-    _available = set()
-    _wait_queue = []
-    _reservations = {}
-    _pending_callbacks = {}
-
     # pylint: disable=too-many-locals
     def __init__(self, config=None, http_client=None):
+        self._places = {}
+        self._exporters = {}
+        self._available = set()
+        self._wait_queue = []
+        self._reservations = {}
+        self._pending_callbacks = {}
+
         if config is None:
             config = {}
 
@@ -208,7 +208,9 @@ class Hub:
                 for candidates, _, future in self._wait_queue:
                     candidates.discard(id_)
                     if not candidates and not future.done():
-                        future.set_exception(Exception("All candidate places are gone"))
+                        future.set_exception(
+                            RuntimeError("All candidate places are gone")
+                        )
 
             coros = [self.return_reservation(id_) for id_ in self._reservations[id_]]
             results = await asyncio.gather(*coros, return_exceptions=True)
@@ -242,7 +244,7 @@ class Hub:
         available_candidates = existing_candidates & self._available
         if available_candidates:
             # TODO do something smart to get the best candidate
-            reserved_id = random.choice(list(available_candidates))
+            reserved_id = random.choice(list(available_candidates))  # noqa: S311
 
             self._available.remove(reserved_id)
             self._reservations[id_].add(reserved_id)
@@ -374,9 +376,8 @@ class Authenticator(util.ContextStack):
                         or set(token_claim) < required_claim
                     ):
                         break
-                else:
-                    if token_claim != required_claim:
-                        break
+                elif token_claim != required_claim:
+                    break
             else:
                 # Token has all needed claims. Add roles.
                 roles.update(permission.roles)

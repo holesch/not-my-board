@@ -179,12 +179,12 @@ class FakeWebsocket:
         await self._send(data)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def http_client():
-    yield FakeHttpClient()
+    return FakeHttpClient()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def hub(http_client):
     config = {
         "auth": {
@@ -198,10 +198,10 @@ def hub(http_client):
             ],
         },
     }
-    yield hubmodule.Hub(config, http_client)
+    return hubmodule.Hub(config, http_client)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def token_store_path():
     path = pathlib.Path(__file__).parent / "auth_tokens.json"
     path.unlink(missing_ok=True)
@@ -256,7 +256,7 @@ async def test_login_success(hub, http_client, token_store_path):
 
 
 @pytest.mark.parametrize(
-    "claims,is_allowed",
+    ("claims", "is_allowed"),
     [
         ({"sub": USER_NAME}, True),
         ({"sub": "unauthorized-user"}, False),
@@ -344,7 +344,7 @@ async def test_permission_lost(hub, http_client, token_store_path, fake_time):
     assert "Permission lost" in str(execinfo.value)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def fake_time(monkeypatch):
     fake_time_ = FakeTime()
     fake_datetime = fake_time_.fake_datetime()

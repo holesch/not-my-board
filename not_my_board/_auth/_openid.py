@@ -157,9 +157,8 @@ class Validator:
         key_id = unverified_token["header"]["kid"]
         issuer = unverified_token["payload"]["iss"]
 
-        if self._trusted_issuers is not None:
-            if issuer not in self._trusted_issuers:
-                raise RuntimeError(f"Unknown issuer: {issuer}")
+        if self._trusted_issuers is not None and issuer not in self._trusted_issuers:
+            raise RuntimeError(f"Unknown issuer: {issuer}")
 
         identity_provider = await IdentityProvider.from_url(issuer, self._http)
         jwk_set_raw = await self._http.get_json(identity_provider.jwks_uri)

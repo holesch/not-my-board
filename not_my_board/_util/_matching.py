@@ -1,4 +1,6 @@
 # pylint: disable=invalid-name
+# ruff: noqa: N803
+# ruff: noqa: N806
 import collections
 
 INFINITY = float("inf")
@@ -81,10 +83,11 @@ def find_matching(G):
         for v in G[u]:
             # Go from v to u over a matched edge. next_u is None, if v is free.
             next_u = M_reverse.get(v)
-            if layer[next_u] == layer[u] + 1:
-                if next_u is None or depth_first_search(next_u):
-                    M[u], M_reverse[v] = v, u
-                    return True
+            if layer[next_u] == layer[u] + 1 and (
+                next_u is None or depth_first_search(next_u)
+            ):
+                M[u], M_reverse[v] = v, u
+                return True
 
         # No path found for this u. Mark it, to not try again.
         layer[u] = INFINITY
@@ -98,21 +101,3 @@ def find_matching(G):
                 depth_first_search(u)
 
     return M
-
-
-def _main():
-    G = {
-        "U0": ["V0", "V1"],
-        "U1": ["V0", "V4"],
-        "U2": ["V2", "V3"],
-        "U3": ["V0", "V4"],
-        "U4": ["V1", "V3"],
-    }
-
-    M = find_matching(G)
-    for k, v in M.items():
-        print(f"{k} -> {v}")
-
-
-if __name__ == "__main__":
-    _main()

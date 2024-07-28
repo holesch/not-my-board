@@ -13,9 +13,9 @@ DEFAULT_EXPORTER_IP = "3.1.1.1"
 DEFAULT_AGENT_IP = "6.1.1.1"
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def hub():
-    yield hubmodule.Hub()
+    return hubmodule.Hub()
 
 
 async def test_no_places_on_startup(hub):
@@ -135,7 +135,7 @@ async def test_all_places_disappear_while_trying_to_reserve(hub):
             candidate_ids = [places["places"][0]["id"]]
             await agent.reserve(candidate_ids)
 
-            with pytest.raises(Exception) as execinfo:
+            with pytest.raises(jsonrpc.RemoteError) as execinfo:
                 # try to reserve same place again
                 coro = agent.reserve(candidate_ids)
                 async with util.background_task(coro):

@@ -200,11 +200,9 @@ class Server:
         except Exception:
             traceback.print_exc()
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 writer.close()
                 await writer.wait_closed()
-            except Exception:
-                pass
 
     async def _start(self):
         return await asyncio.start_server(self._on_connect, *self._args, **self._kwargs)
@@ -232,7 +230,7 @@ class ContextStack:
     """
 
     async def _context_stack(self, stack):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     async def __aenter__(self):
         async with contextlib.AsyncExitStack() as stack:

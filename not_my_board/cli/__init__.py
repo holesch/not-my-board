@@ -1,3 +1,4 @@
+# ruff: noqa: T201
 import argparse
 import asyncio
 import json
@@ -19,10 +20,11 @@ except ModuleNotFoundError:
     __version__ = "dev"
 
 
-TOKEN_STORE_PATH = "/var/lib/not-my-board/auth_tokens.json"
+TOKEN_STORE_PATH = "/var/lib/not-my-board/auth_tokens.json"  # noqa: S105
 
 
 # pylint: disable=too-many-statements
+# ruff: noqa: PLR0915
 def main():
     parser = argparse.ArgumentParser(description="Setup, manage and use a board farm")
     parser.add_argument(
@@ -218,7 +220,7 @@ async def _uevent_command(args):
 
 async def _login_command(args):
     http_client = http.Client(args.cacert)
-    token_store_path = "/var/lib/not-my-board/auth_tokens.json"
+    token_store_path = "/var/lib/not-my-board/auth_tokens.json"  # noqa: S105
     async with auth.LoginFlow(args.hub_url, http_client, token_store_path) as login:
         print(
             f"{Format.BOLD}"
