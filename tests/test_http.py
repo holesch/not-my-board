@@ -26,6 +26,17 @@ async def test_proxy_connect(tinyproxy):
         assert response == {"places": []}
 
 
+async def test_proxy_ignore():
+    async with sh_task("not-my-board hub", "hub"):
+        await wait_for_ports(2092)
+
+        client = http.Client(
+            proxies={"http": "http://non-existing.localhost", "no": "127.0.0.1"}
+        )
+        response = await client.get_json("http://127.0.0.1:2092/api/v1/places")
+        assert response == {"places": []}
+
+
 async def test_proxy_connect_https(tinyproxy):
     root_key = project_dir / "tests/.cache/not-my-board-root-ca.key"
     root_cert = project_dir / "tests/.cache/not-my-board-root-ca.crt"

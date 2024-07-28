@@ -37,9 +37,12 @@ class Client:
 
         if proxies is None:
             proxies = urllib.request.getproxies()
-        self._proxies = {
-            scheme: self._parse_url(url) for scheme, url in proxies.items()
-        }
+
+        self._proxies = {}
+        for scheme in ("http", "https"):
+            if scheme in proxies:
+                self._proxies[scheme] = self._parse_url(proxies[scheme])
+        self._no_proxy = proxies.get("no", "")
 
     async def get_json(self, url):
         return await self._request_json("GET", url)
@@ -125,7 +128,7 @@ class Client:
 
     def _get_proxy(self, url):
         proxy = self._proxies.get(url.scheme)
-        if proxy and not is_proxy_disabled(url.host, self._proxies.get("no", "")):
+        if proxy and not is_proxy_disabled(url.host, self._no_proxy):
             return proxy
         return None
 
