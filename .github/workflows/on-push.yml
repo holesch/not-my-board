@@ -27,8 +27,10 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[test]
+    - name: Lint with Ruff
+      run: ruff check not_my_board tests doc
     - name: Check format with Black
-      run: black --check --quiet not_my_board tests doc
+      run: black --check not_my_board tests doc
     - name: Check import statement order with isort
       run: isort --check not_my_board tests
     - name: Check spelling
