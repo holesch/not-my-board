@@ -1,7 +1,7 @@
 # not-my-board
 
 [![on-push](https://github.com/holesch/not-my-board/actions/workflows/on-push.yml/badge.svg)](https://github.com/holesch/not-my-board/actions/workflows/on-push.yml)
-![PyPI - Version](https://img.shields.io/pypi/v/not-my-board)
+[![PyPI - Version](https://img.shields.io/pypi/v/not-my-board)](https://pypi.org/project/not-my-board/)
 ![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fholesch%2Fnot-my-board%2Fmaster%2Fpyproject.toml)
 ![PyPI - Status](https://img.shields.io/pypi/status/not-my-board)
 
