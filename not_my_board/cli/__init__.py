@@ -23,7 +23,6 @@ except ModuleNotFoundError:
 TOKEN_STORE_PATH = "/var/lib/not-my-board/auth_tokens.json"  # noqa: S105
 
 
-# pylint: disable=too-many-statements
 # ruff: noqa: PLR0915
 def main():
     parser = argparse.ArgumentParser(description="Setup, manage and use a board farm")

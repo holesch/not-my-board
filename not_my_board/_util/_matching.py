@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name
 # ruff: noqa: N803
 # ruff: noqa: N806
 import collections

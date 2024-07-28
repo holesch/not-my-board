@@ -97,7 +97,6 @@ class _TokenStore(util.ContextStack):
         self._path = path
 
     async def _context_stack(self, stack):
-        # pylint: disable-next=consider-using-with  # false positive
         self._f = stack.enter_context(self._path.open("r+"))
         await stack.enter_async_context(util.flock(self._f))
         content = self._f.read()

@@ -217,7 +217,6 @@ def hidden(func):
     keep it public for local users, otherwise just use a leading underscore in
     the method name.
     """
-    # pylint: disable=protected-access
     func._jsonrpc_hidden = True
     return func
 

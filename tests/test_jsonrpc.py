@@ -308,7 +308,6 @@ async def test_either_args_or_kwargs(fakes):
 
 async def test_prevent_hidden_function_call(fakes):
     with pytest.raises(AttributeError) as execinfo:
-        # pylint: disable=protected-access
         await fakes.channel._hidden()
     assert "invalid attribute" in str(execinfo.value)
 

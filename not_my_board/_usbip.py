@@ -371,9 +371,6 @@ class Char(bytes):
         return Annotated[bytes, StructStr(f"{key}s")]
 
 
-# pylint: disable=W0212,E1101
-# - accessing protected member of cls, e.g. cls._struct
-# - 'serializable' has no '_struct' member
 def serializable(cls):
     cls = dataclasses.dataclass(cls)
 
@@ -414,8 +411,6 @@ def serializable(cls):
                     f"Expected {field.name}={field.default}, got={value}"
                 )
 
-        # pylint: disable=E1120
-        # No value for argument 'cls': false positive
         return cls(*init_values)
 
     cls.__bytes__ = __bytes__
@@ -424,7 +419,6 @@ def serializable(cls):
     return cls
 
 
-# pylint: disable=invalid-field-call
 def no_init(default):
     return dataclasses.field(default=default, init=False)
 
@@ -502,7 +496,6 @@ async def _open_read_pipe(*args, **kwargs):
         yield reader
 
 
-# pylint: disable=import-outside-toplevel
 async def _main():
     import argparse
 

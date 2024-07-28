@@ -37,8 +37,6 @@ async def asgi_app(scope, receive, send):
         # before handing over to asgineer
         await _handle_lifespan(scope, receive, send)
     else:
-        # to_asgi() decorator adds extra arguments
-        # pylint: disable-next=too-many-function-args
         await _handle_request(scope, receive, send)
 
 
@@ -114,7 +112,6 @@ def require_role(role):
 
 
 class Hub:
-    # pylint: disable=too-many-locals
     def __init__(self, config=None, http_client=None):
         self._places = {}
         self._exporters = {}

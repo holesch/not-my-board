@@ -254,7 +254,6 @@ def _filter_places(import_description, places):
     return candidates
 
 
-# pylint: disable=too-many-locals
 def _create_tunnel_descriptions(import_description, place, matching):
     place_name = import_description.name
     proxy = (place.host, place.port)

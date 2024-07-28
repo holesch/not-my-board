@@ -27,8 +27,6 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[test]
-    - name: Lint with Pylint
-      run: pylint --score=n not_my_board tests
     - name: Check format with Black
       run: black --check --quiet not_my_board tests doc
     - name: Check import statement order with isort

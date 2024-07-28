@@ -435,7 +435,6 @@ def _is_proxy_disabled_host(host, patterns):
     return False
 
 
-# pylint: disable=protected-access
 # remove, if Python version < 3.11 is no longer supported
 async def _start_tls(writer, url):
     if hasattr(writer, "start_tls"):

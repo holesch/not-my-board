@@ -58,7 +58,6 @@ class FakeExporter:
         return self._allowed_ips
 
 
-# pylint: disable=redefined-outer-name
 @contextlib.asynccontextmanager
 async def register_exporter(hub, ip=DEFAULT_EXPORTER_IP):
     rpc1, rpc2 = fake_rpc_pair()
@@ -80,7 +79,6 @@ async def test_register_exporter(hub):
     assert len(places["places"]) == 0
 
 
-# pylint: disable=redefined-outer-name
 @contextlib.asynccontextmanager
 async def register_agent(hub, ip=DEFAULT_AGENT_IP):
     rpc1, rpc2 = fake_rpc_pair()
