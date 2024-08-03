@@ -3,6 +3,8 @@
 import asyncio
 import codecs
 import contextlib
+import datetime
+import email.utils
 import ipaddress
 import json
 import logging
@@ -47,15 +49,23 @@ class Client:
                 self._proxies[scheme] = self._parse_url(proxies[scheme])
         self._no_proxy = proxies.get("no", "")
 
-    async def get_json(self, url):
-        return await self._request_json("GET", url)
+    async def get_json(self, url, cache=None):
+        return await self._request_json("GET", url, cache=cache)
 
     async def post_form(self, url, params):
         content_type = "application/x-www-form-urlencoded"
         body = urllib.parse.urlencode(params).encode()
         return await self._request_json("POST", url, content_type, body)
 
-    async def _request_json(self, method, url, content_type=None, body=None):
+    async def _request_json(
+        self, method, url, content_type=None, body=None, cache=None
+    ):
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+
+        if cache and cache.url == url and now <= cache.fresh_until:
+            return json.loads(cache.content)
+
+        raw_url = url
         url = self._parse_url(url)
         headers = [
             ("Host", url.netloc),
@@ -78,7 +88,13 @@ class Client:
             to_send += conn.send(h11.Data(body))
         to_send += conn.send(h11.EndOfMessage())
 
+        request_time = now
         response = await self._request_response(conn, url, to_send)
+        response_time = datetime.datetime.now(tz=datetime.timezone.utc)
+
+        if cache:
+            self._update_cache(cache, raw_url, request_time, response_time, response)
+
         await self._check_response_ok(response)
 
         return json.loads(response.body)
@@ -165,6 +181,60 @@ class Client:
             url.password,
             ssl_,
         )
+
+    def _update_cache(self, cache, url, request_time, response_time, response):
+        headers = {k.decode("ascii"): v.decode("ascii") for k, v in response.headers}
+        cache_control = headers.get("cache-control", "").lower()
+        cache_control = _parse_dict_header(cache_control)
+
+        if any(x in cache_control for x in ["no-store", "no-cache"]):
+            cache.url = None
+            return
+
+        cache.url = url
+        cache.content = response.body
+        cache.fresh_until = response_time + datetime.timedelta(seconds=5)
+
+        if "max-age" in cache_control:
+            date_value = response_time
+            age = datetime.timedelta(seconds=0)
+
+            if "date" in headers:
+                try:
+                    date_value = email.utils.parsedate_to_datetime(headers["date"])
+                except Exception as e:
+                    logger.warning(
+                        'Error parsing "Date" header value "%s": %s', headers["date"], e
+                    )
+
+            if "age" in headers:
+                try:
+                    age = datetime.timedelta(seconds=int(headers["age"]))
+                except Exception as e:
+                    logger.warning(
+                        'Error parsing "Age" header value "%s": %s', headers["age"], e
+                    )
+
+            generated_at = min(date_value, request_time - age)
+
+            max_age = datetime.timedelta(seconds=int(cache_control["max-age"]))
+            cache.fresh_until = generated_at + max_age
+        elif "expires" in headers:
+            expires_value = datetime.datetime.min
+
+            if headers["expires"] != "0":
+                try:
+                    expires_value = email.utils.parsedate_to_datetime(
+                        headers["expires"]
+                    )
+                except Exception as e:
+                    logger.warning(
+                        'Error parsing "Expires" header value "%s": %s',
+                        headers["expires"],
+                        e,
+                    )
+
+            cache.fresh_until = expires_value
 
     @contextlib.asynccontextmanager
     async def open_tunnel(
@@ -359,6 +429,13 @@ class Response:
     body: str
 
 
+@dataclass
+class CacheEntry:
+    url: Optional[str] = None
+    content: str = ""
+    fresh_until: datetime.datetime = datetime.datetime.min
+
+
 def is_proxy_disabled(host, no_proxy_env):
     if not host or not no_proxy_env:
         return False
@@ -442,6 +519,20 @@ def _is_proxy_disabled_host(host, patterns):
             return True
 
     return False
+
+
+def _parse_dict_header(value):
+    result = {}
+
+    for item in urllib.request.parse_http_list(value):
+        if "=" in item:
+            name, value = item.split("=", 1)
+            if len(value) >= len('""') and value[0] == value[-1] == '"':
+                value = value[1:-1]
+            result[name] = value
+        else:
+            result[item] = None
+    return result
 
 
 # remove, if Python version < 3.11 is no longer supported
