@@ -10,7 +10,7 @@ import ssl
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import h11
 import websockets
@@ -78,36 +78,38 @@ class Client:
             to_send += conn.send(h11.Data(body))
         to_send += conn.send(h11.EndOfMessage())
 
+        response = await self._request_response(conn, url, to_send)
+        await self._check_response_ok(response)
+
+        return json.loads(response.body)
+
+    async def _request_response(self, conn, url, request_bytes):
         async with self._connect(url) as (reader, writer):
-            writer.write(to_send)
+            writer.write(request_bytes)
             await writer.drain()
 
-            async def receive_all():
-                error_status = None
-                error_data = b""
-                while True:
-                    event = conn.next_event()
-                    if event is h11.NEED_DATA:
-                        conn.receive_data(await reader.read(4096))
-                    elif isinstance(event, h11.Response):
-                        if event.status_code != STATUS_OK:
-                            error_status = event.status_code
-                    elif isinstance(event, h11.Data):
-                        if error_status is None:
-                            yield event.data
-                        else:
-                            error_data += event.data
-                    elif isinstance(event, (h11.EndOfMessage, h11.PAUSED)):
-                        break
+            status_code = None
+            headers = None
+            body = b""
+            while True:
+                event = conn.next_event()
+                if event is h11.NEED_DATA:
+                    conn.receive_data(await reader.read(4096))
+                elif isinstance(event, h11.Response):
+                    status_code = event.status_code
+                    headers = event.headers
+                elif isinstance(event, h11.Data):
+                    body += event.data
+                elif isinstance(event, (h11.EndOfMessage, h11.PAUSED)):
+                    break
 
-                if error_status is not None:
-                    raise ProtocolError(
-                        f"Expected status code {STATUS_OK}, got {error_status}: {error_data}"
-                    )
+            return Response(status_code, headers, body)
 
-            content = b"".join([data async for data in receive_all()])
-
-        return json.loads(content)
+    async def _check_response_ok(self, response):
+        if response.status_code != STATUS_OK:
+            raise ProtocolError(
+                f"Expected status code {STATUS_OK}, got {response.status_code}: {response.body}"
+            )
 
     @contextlib.asynccontextmanager
     async def _connect(self, url):
@@ -348,6 +350,13 @@ class _ParsedURL:
     username: Optional[str]
     password: Optional[str]
     ssl: Union[bool, ssl.SSLContext]
+
+
+@dataclass
+class Response:
+    status_code: int
+    headers: List[Tuple[str, str]]
+    body: str
 
 
 def is_proxy_disabled(host, no_proxy_env):
