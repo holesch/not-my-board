@@ -17,6 +17,8 @@ jobs:
     - name: Build Sphinx documentation
       run: sphinx-build -n -W --keep-going doc doc/_build
   static_checks:
+    permissions:
+      id-token: write
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -35,6 +37,10 @@ jobs:
       run: isort --check not_my_board tests
     - name: Check spelling
       run: git ls-files -z | xargs -0 -- codespell
+    - name: Store GitHub Token
+      run: echo ${{ secrets.GITHUB_TOKEN }} > /tmp/token
+    - name: Setup upterm session
+      uses: lhotari/action-upterm@v1
   test:
     runs-on: ubuntu-latest
     strategy:
