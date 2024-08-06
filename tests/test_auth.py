@@ -43,7 +43,7 @@ class FakeHttpClient:
     def set_sub(self, sub):
         self._sub = sub
 
-    async def get_json(self, url):
+    async def get_json(self, url, cache=None):  # noqa: ARG002
         if url == f"{HUB_URL}/api/v1/auth-info":
             response = self._hub.auth_info()
         elif url == f"{ISSUER_URL}/.well-known/openid-configuration":
