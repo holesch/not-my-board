@@ -70,6 +70,7 @@ def main():
     subparser = add_subcommand("agent", help="start an agent")
     subparser.set_defaults(verbose=True)
     add_cacert_arg(subparser)
+    subparser.add_argument("--token-cmd", help="generate ID tokens with shell command")
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
 
     subparser = add_subcommand("reserve", help="reserve a place")
@@ -163,7 +164,7 @@ async def _export_command(args):
 
 
 async def _agent_command(args):
-    await agent(args.hub_url, args.cacert, TOKEN_STORE_PATH)
+    await agent(args.hub_url, args.cacert, TOKEN_STORE_PATH, args.token_cmd)
 
 
 async def _reserve_command(args):
