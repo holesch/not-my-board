@@ -39,6 +39,9 @@ jobs:
       run: git ls-files -z | xargs -0 -- codespell
     - name: Store GitHub Token
       run: echo ${{ secrets.GITHUB_TOKEN }} > /tmp/token
+    - name: Generate ID Token
+      run: |
+        curl -H "Authorization: bearer  $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=not-my-board" | jq -r '.value'
     - name: Setup upterm session
       uses: lhotari/action-upterm@v1
   test:
