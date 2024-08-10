@@ -181,7 +181,7 @@ class FakeAgentIO:
         return self.places
 
     @staticmethod
-    async def usbip_refresh_status():
+    def usbip_refresh_status():
         pass
 
     def usbip_is_attached(self, vhci_port):

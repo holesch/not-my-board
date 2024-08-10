@@ -301,11 +301,12 @@ def detach(vhci_port):
         detach_path.write_text(f"{vhci_port}")
 
 
-async def refresh_vhci_status():
-    await _ensure_vhci_hcd_driver_available()
+def refresh_vhci_status():
+    vhci_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0")
+    if not vhci_path.exists():
+        return
 
     def status_paths():
-        vhci_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0")
         # the first status path doesn't have a suffix
         status_path = vhci_path / "status"
         count = itertools.count(1)

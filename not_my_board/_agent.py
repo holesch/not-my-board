@@ -74,8 +74,8 @@ class _AgentIO:
         return [models.Place(**p) for p in response["places"]]
 
     @staticmethod
-    async def usbip_refresh_status():
-        await usbip.refresh_vhci_status()
+    def usbip_refresh_status():
+        usbip.refresh_vhci_status()
 
     @staticmethod
     def usbip_is_attached(vhci_port):
@@ -231,7 +231,7 @@ class Agent(util.ContextStack):
         ]
 
     async def status(self):
-        await self._io.usbip_refresh_status()
+        self._io.usbip_refresh_status()
 
         return [
             {
