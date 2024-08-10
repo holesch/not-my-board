@@ -12,10 +12,8 @@ import not_my_board._http as http
 
 
 @dataclasses.dataclass
-class IdentityProvider:
+class IdentityProviderMinimal:
     issuer: str
-    authorization_endpoint: str
-    token_endpoint: str
     jwks_uri: str
 
     @classmethod
@@ -29,6 +27,12 @@ class IdentityProvider:
             field.name: config[field.name] for field in dataclasses.fields(cls)
         }
         return cls(**init_args)
+
+
+@dataclasses.dataclass
+class IdentityProvider(IdentityProviderMinimal):
+    authorization_endpoint: str
+    token_endpoint: str
 
 
 @dataclasses.dataclass
@@ -172,7 +176,7 @@ class Validator:
         else:
             idp_cache = jwk_cache = None
 
-        identity_provider = await IdentityProvider.from_url(
+        identity_provider = await IdentityProviderMinimal.from_url(
             issuer, self._http, idp_cache
         )
         jwk_set_raw = await self._http.get_json(identity_provider.jwks_uri, jwk_cache)
