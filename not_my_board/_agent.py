@@ -137,9 +137,11 @@ class Agent(util.ContextStack):
 
     async def _context_stack(self, stack):
         self._hub = await stack.enter_async_context(self._io.hub_rpc())
+        self._hub.set_api_object(_WebsocketInterface(self._io))
         stack.push_async_callback(self._cleanup)
         self._unix_server = await stack.enter_async_context(self._io.unix_server(self))
 
+    @jsonrpc.hidden
     async def serve_forever(self):
         await self._unix_server.serve_forever()
 
@@ -242,6 +244,11 @@ class Agent(util.ContextStack):
             for name, reservation in self._reservations.items()
             for tunnel in reservation.tunnels
         ]
+
+
+class _WebsocketInterface:
+    def __init__(self, io):
+        self._io = io
 
     async def get_id_token(self):
         return await self._io.get_id_token()

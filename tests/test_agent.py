@@ -137,6 +137,9 @@ class FakeHub:
         self.reserve_pending = asyncio.Event()
         self.reserve_continue.set()
 
+    def set_api_object(self, _):
+        pass
+
     async def reserve(self, candidate_ids):
         self.reserve_pending.set()
         try:
