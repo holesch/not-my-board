@@ -8,6 +8,7 @@ import functools
 import ipaddress
 import itertools
 import logging
+import os
 import pathlib
 import random
 from dataclasses import dataclass
@@ -45,7 +46,11 @@ async def _handle_lifespan(scope, receive, send):
         message = await receive()
         if message["type"] == "lifespan.startup":
             try:
-                config_file = pathlib.Path("/etc/not-my-board/not-my-board-hub.toml")
+                config_file = os.environ.get("NOT_MY_BOARD_HUB_CONFIG")
+                if not config_file:
+                    config_file = "/etc/not-my-board/not-my-board-hub.toml"
+                config_file = pathlib.Path(config_file)
+
                 if config_file.exists():
                     config = util.toml_loads(config_file.read_text())
                 else:
