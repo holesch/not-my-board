@@ -8,10 +8,10 @@ Here's a description of all the commands and options `not-my-board` supports.
 : Start the board farm *Hub*. There should be only one hub in the entire
   network.
 
-**`export`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] *hub_url* *export_description*
+**`export`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] \[**`--token-cmd`** *token_cmd*\] *hub_url* *export_description*
 : Make connected boards and equipment available in the board farm.
 
-**`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] *hub_url*
+**`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] \[**`--token-cmd`** *token_cmd*\] *hub_url*
 : Start an *Agent*.
 
 **`login`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`--cacert`** *cacert*\] *hub_url*
@@ -54,6 +54,16 @@ Show help message and exit.
 Load additional CA certificates to trust when using TLS. *cacert* is a path to a
 file of concatenated CA certificates in PEM format. Can be used multiple times
 to load more than one file. System default CA certificates are always trusted.
+```
+
+```{option} --token-cmd token_cmd
+Get the ID token used for authentication from the shell command *token_cmd*. The
+*token_cmd* can have the placeholders `${issuer}` and `${client_id}`. The curly
+braces are optional, if no alphanumeric character (including underscores) is
+right after the placeholder. A `$` can be escaped with `$$`.
+
+This option is an alternative to the `login` command. It can be used in
+non-interactive environments.
 ```
 
 ```{option} hub_url
