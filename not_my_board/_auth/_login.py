@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import pathlib
+import string
 
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._util as util
@@ -89,12 +90,19 @@ class IdTokenFromFile:
 
 
 class IdTokenFromCmd:
-    def __init__(self, hub_url, http_client, cmd):
+    def __init__(self, hub_url, http_client, cmd_template):
         self._hub_url = hub_url
         self._http = http_client
-        self._cmd = cmd
+        self._cmd_template = string.Template(cmd_template)
+        self._cmd = None
 
     async def get_id_token(self):
+        if self._cmd is None:
+            url = f"{self._hub_url}/api/v1/auth-info"
+            auth_info = await self._http.get_json(url)
+            context = {k: auth_info[k] for k in ("issuer", "client_id")}
+            self._cmd = self._cmd_template.safe_substitute(context)
+
         proc = await asyncio.create_subprocess_shell(
             self._cmd, stdout=asyncio.subprocess.PIPE
         )
