@@ -6,12 +6,12 @@ import logging
 import pathlib
 import sys
 
+import not_my_board._agent as agent
 import not_my_board._auth as auth
 import not_my_board._client as client
+import not_my_board._export as export
 import not_my_board._http as http
 import not_my_board._util as util
-from not_my_board._agent import agent
-from not_my_board._export import export
 from not_my_board._hub import run_hub
 
 try:
@@ -160,11 +160,26 @@ def _hub_command(_):
 
 
 async def _export_command(args):
-    await export(args.hub_url, args.export_description, args.cacert, TOKEN_STORE_PATH)
+    http_client = http.Client(args.cacert)
+    token_src = auth.IdTokenFromFile(args.hub_url, http_client, TOKEN_STORE_PATH)
+    async with export.Exporter(
+        args.hub_url, args.export_description, http_client, token_src
+    ) as exporter:
+        await exporter.register_place()
+        await exporter.serve_forever()
 
 
 async def _agent_command(args):
-    await agent(args.hub_url, args.cacert, TOKEN_STORE_PATH, args.token_cmd)
+    http_client = http.Client(args.cacert)
+    io = agent.AgentIO(args.hub_url, http_client)
+
+    if args.token_cmd:
+        token_src = auth.IdTokenFromCmd(args.hub_url, http_client, args.token_cmd)
+    else:
+        token_src = auth.IdTokenFromFile(args.hub_url, http_client, TOKEN_STORE_PATH)
+
+    async with agent.Agent(args.hub_url, io, token_src) as agent_:
+        await agent_.serve_forever()
 
 
 async def _reserve_command(args):

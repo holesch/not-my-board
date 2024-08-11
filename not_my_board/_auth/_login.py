@@ -71,16 +71,37 @@ class _HubNotifications:
         self._ready_event.set()
 
 
-async def get_id_token(token_store_path, hub_url, http_client):
-    token_store = _TokenStore(token_store_path)
-    async with token_store:
-        id_token, refresh_token = token_store.get_tokens(hub_url)
-        id_token, refresh_token = await ensure_fresh(
-            id_token, refresh_token, http_client
-        )
-        token_store.save_tokens(hub_url, id_token, refresh_token)
+class IdTokenFromFile:
+    def __init__(self, hub_url, http_client, token_store_path):
+        self._hub_url = hub_url
+        self._http = http_client
+        self._token_store = _TokenStore(token_store_path)
 
-    return id_token
+    async def get_id_token(self):
+        async with self._token_store:
+            id_token, refresh_token = self._token_store.get_tokens(self._hub_url)
+            id_token, refresh_token = await ensure_fresh(
+                id_token, refresh_token, self._http
+            )
+            self._token_store.save_tokens(self._hub_url, id_token, refresh_token)
+
+        return id_token
+
+
+class IdTokenFromCmd:
+    def __init__(self, hub_url, http_client, cmd):
+        self._hub_url = hub_url
+        self._http = http_client
+        self._cmd = cmd
+
+    async def get_id_token(self):
+        proc = await asyncio.create_subprocess_shell(
+            self._cmd, stdout=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode:
+            raise RuntimeError(f"{self._cmd!r} exited with {proc.returncode}")
+        return stdout.decode("utf-8").rstrip()
 
 
 class _TokenStore(util.ContextStack):

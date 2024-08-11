@@ -13,8 +13,6 @@ import weakref
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
-import not_my_board._auth as auth
-import not_my_board._http as http
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
 import not_my_board._usbip as usbip
@@ -25,18 +23,10 @@ USBIP_REMOTE = ("usb.not-my-board.localhost", 3240)
 Address = Tuple[str, int]
 
 
-async def agent(hub_url, ca_files, token_store_path, token_cmd):
-    io = _AgentIO(hub_url, http.Client(ca_files), token_store_path, token_cmd)
-    async with Agent(hub_url, io) as agent_:
-        await agent_.serve_forever()
-
-
-class _AgentIO:
-    def __init__(self, hub_url, http_client, token_store_path, token_cmd):
+class AgentIO:
+    def __init__(self, hub_url, http_client):
         self._hub_url = hub_url
         self._http = http_client
-        self._token_store_path = token_store_path
-        self._token_cmd = token_cmd
 
     @contextlib.asynccontextmanager
     async def hub_rpc(self):
@@ -111,33 +101,19 @@ class _AgentIO:
             await client_w.drain()
             await util.relay_streams(client_r, client_w, remote_r, remote_w)
 
-    async def get_id_token(self):
-        if self._token_cmd:
-            logger.debug("Executing token command: %s", self._token_cmd)
-            proc = await asyncio.create_subprocess_shell(
-                self._token_cmd, stdout=asyncio.subprocess.PIPE
-            )
-            stdout, _ = await proc.communicate()
-            if proc.returncode:
-                raise RuntimeError(f"{self._token_cmd!r} exited with {proc.returncode}")
-            return stdout.decode("utf-8").rstrip()
-
-        return await auth.get_id_token(
-            self._token_store_path, self._hub_url, self._http
-        )
-
 
 class Agent(util.ContextStack):
-    def __init__(self, hub_url, io):
+    def __init__(self, hub_url, io, token_src):
         url = urllib.parse.urlsplit(hub_url)
         self._hub_host = url.netloc.split(":")[0]
         self._io = io
         self._locks = weakref.WeakValueDictionary()
         self._reservations = {}
+        self._token_src = token_src
 
     async def _context_stack(self, stack):
         self._hub = await stack.enter_async_context(self._io.hub_rpc())
-        self._hub.set_api_object(_WebsocketInterface(self._io))
+        self._hub.set_api_object(self._token_src)
         stack.push_async_callback(self._cleanup)
         self._unix_server = await stack.enter_async_context(self._io.unix_server(self))
 
@@ -244,14 +220,6 @@ class Agent(util.ContextStack):
             for name, reservation in self._reservations.items()
             for tunnel in reservation.tunnels
         ]
-
-
-class _WebsocketInterface:
-    def __init__(self, io):
-        self._io = io
-
-    async def get_id_token(self):
-        return await self._io.get_id_token()
 
 
 def _filter_places(import_description, places):

@@ -210,12 +210,11 @@ def token_store_path():
 
 
 class FakeExporter:
-    def __init__(self, rpc, token_store_path_, http, id_token=None):
+    def __init__(self, rpc, token_src, http):
         rpc.set_api_object(self)
         self._rpc = rpc
         self._http = http
-        self._token_store_path = token_store_path_
-        self._id_token = id_token
+        self._token_src = token_src
 
     async def communicate_forever(self):
         await self._rpc.communicate_forever()
@@ -228,9 +227,15 @@ class FakeExporter:
         await self._rpc.register_place(place)
 
     async def get_id_token(self):
-        if self._id_token is not None:
-            return self._id_token
-        return await auth.get_id_token(self._token_store_path, HUB_URL, self._http)
+        return await self._token_src.get_id_token()
+
+
+class FakeTokenSource:
+    def __init__(self, id_token):
+        self._id_token = id_token
+
+    async def get_id_token(self):
+        return self._id_token
 
 
 async def test_login_success(hub, http_client, token_store_path):
@@ -247,7 +252,8 @@ async def test_login_success(hub, http_client, token_store_path):
         assert claims["aud"] == CLIENT_ID
 
     rpc1, rpc2 = fake_rpc_pair()
-    fake_exporter = FakeExporter(rpc1, token_store_path, http_client)
+    token_src = auth.IdTokenFromFile(HUB_URL, http_client, token_store_path)
+    fake_exporter = FakeExporter(rpc1, token_src, http_client)
     hub_coro = hub.communicate("3.1.1.1", rpc2)
     exporter_coro = fake_exporter.communicate_forever()
     async with util.background_task(hub_coro):
@@ -299,7 +305,8 @@ async def test_permissions(claims, is_allowed):
     tokens = http_client_.issue_tokens(full_claims)
 
     rpc1, rpc2 = fake_rpc_pair()
-    fake_exporter = FakeExporter(rpc1, "", http_client_, tokens["id"])
+    token_src = FakeTokenSource(tokens["id"])
+    fake_exporter = FakeExporter(rpc1, token_src, http_client_)
     hub_coro = hub_.communicate("3.1.1.1", rpc2)
     exporter_coro = fake_exporter.communicate_forever()
     async with util.background_task(hub_coro):
@@ -327,7 +334,8 @@ async def test_permission_lost(hub, http_client, token_store_path, fake_time):
     token_store_path.write_text(json.dumps(token_store_content))
 
     rpc1, rpc2 = fake_rpc_pair()
-    fake_exporter = FakeExporter(rpc1, token_store_path, http_client)
+    token_src = auth.IdTokenFromFile(HUB_URL, http_client, token_store_path)
+    fake_exporter = FakeExporter(rpc1, token_src, http_client)
     hub_coro = hub.communicate("3.1.1.1", rpc2)
     exporter_coro = fake_exporter.communicate_forever()
 
