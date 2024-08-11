@@ -62,6 +62,7 @@ def main():
     )
     subparser.set_defaults(verbose=True)
     add_cacert_arg(subparser)
+    subparser.add_argument("--token-cmd", help="generate ID tokens with shell command")
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
     subparser.add_argument(
         "export_description", type=pathlib.Path, help="path to a export description"
@@ -161,7 +162,8 @@ def _hub_command(_):
 
 async def _export_command(args):
     http_client = http.Client(args.cacert)
-    token_src = auth.IdTokenFromFile(args.hub_url, http_client, TOKEN_STORE_PATH)
+    token_src = _token_src(args, http_client)
+
     async with export.Exporter(
         args.hub_url, args.export_description, http_client, token_src
     ) as exporter:
@@ -172,14 +174,16 @@ async def _export_command(args):
 async def _agent_command(args):
     http_client = http.Client(args.cacert)
     io = agent.AgentIO(args.hub_url, http_client)
-
-    if args.token_cmd:
-        token_src = auth.IdTokenFromCmd(args.hub_url, http_client, args.token_cmd)
-    else:
-        token_src = auth.IdTokenFromFile(args.hub_url, http_client, TOKEN_STORE_PATH)
+    token_src = _token_src(args, http_client)
 
     async with agent.Agent(args.hub_url, io, token_src) as agent_:
         await agent_.serve_forever()
+
+
+def _token_src(args, http_client):
+    if args.token_cmd:
+        return auth.IdTokenFromCmd(args.hub_url, http_client, args.token_cmd)
+    return auth.IdTokenFromFile(args.hub_url, http_client, TOKEN_STORE_PATH)
 
 
 async def _reserve_command(args):
