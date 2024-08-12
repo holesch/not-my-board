@@ -53,6 +53,7 @@ how-to-guides/set-up-exporter
 how-to-guides/set-up-agent
 how-to-guides/usb-export
 how-to-guides/usb-import
+how-to-guides/import-places-in-ci
 ```
 
 ```{toctree}
