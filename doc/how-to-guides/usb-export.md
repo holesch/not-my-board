@@ -89,7 +89,7 @@ $ sudo dmesg | grep usb
 Now create the export description with the `usbid` of the USB device. If your
 board has more than one USB interface, you can of course add them all:
 ```{code-block} toml
-:caption: /etc/not-my-board/example.toml
+:caption: /etc/not-my-board/export-descriptions/example.toml
 
 port = 2192
 
@@ -101,5 +101,5 @@ usb.usb-serial = { usbid = "3-8" }
 
 Finally, use the export description to register the place in the board farm:
 ```console
-$ sudo not-my-board export http://<board-farm-address>:2092 /etc/not-my-board/example.toml
+$ sudo not-my-board export http://<board-farm-address>:2092 /etc/not-my-board/export-descriptions/example.toml
 ```

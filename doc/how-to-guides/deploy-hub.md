@@ -47,7 +47,7 @@ Add the OpenID configuration information to the *Hub* configuration. For example
 when using Keycloak:
 
 ```{code-block} toml
-:caption: /etc/not-my-board/not-my-board-hub.toml
+:caption: /etc/not-my-board/hub.toml
 
 [auth]
 issuer = "http://keycloak.example.com/realms/master"
@@ -61,7 +61,7 @@ Then add permissions for users. You can get the claims from users after they log
 in with `not-my-board login`, or from the OpenID provider.
 
 ```{code-block} toml
-:caption: /etc/not-my-board/not-my-board-hub.toml
+:caption: /etc/not-my-board/hub.toml
 
 # [...]
 

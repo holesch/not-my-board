@@ -48,7 +48,7 @@ async def _handle_lifespan(scope, receive, send):
             try:
                 config_file = os.environ.get("NOT_MY_BOARD_HUB_CONFIG")
                 if not config_file:
-                    config_file = "/etc/not-my-board/not-my-board-hub.toml"
+                    config_file = "/etc/not-my-board/hub.toml"
                 config_file = pathlib.Path(config_file)
 
                 if config_file.exists():

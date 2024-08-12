@@ -23,7 +23,7 @@ system generate an ID token for your job.
 
 For example with GitHub Actions, add permissions to the *Hub* config:
 ```{code-block} toml
-:caption: /etc/not-my-board/not-my-board-hub.toml
+:caption: /etc/not-my-board/hub.toml
 
 [...]
 

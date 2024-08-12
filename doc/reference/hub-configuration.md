@@ -1,9 +1,8 @@
 # Hub Configuration
 
-The *Hub* loads its configuration on startup from
-`/etc/not-my-board/not-my-board-hub.toml`. You can override this location with
-the environment variable `NOT_MY_BOARD_HUB_CONFIG`. The file format is
-[TOML](https://toml.io/en/).
+The *Hub* loads its configuration on startup from `/etc/not-my-board/hub.toml`.
+You can override this location with the environment variable
+`NOT_MY_BOARD_HUB_CONFIG`. The file format is [TOML](https://toml.io/en/).
 
 ## Settings
 
@@ -94,7 +93,7 @@ The following roles are defined:
 
 Here's an example of a *Hub* configuration:
 ```{code-block} toml
-:caption: /etc/not-my-board/not-my-board-hub.toml
+:caption: /etc/not-my-board/hub.toml
 
 log_level = "info"
 
@@ -114,7 +113,7 @@ roles = ["importer"]
 
 And here's an example with Microsoft Entra ID as OpenID provider:
 ```{code-block} toml
-:caption: /etc/not-my-board/not-my-board-hub.toml
+:caption: /etc/not-my-board/hub.toml
 log_level = "info"
 
 [auth]

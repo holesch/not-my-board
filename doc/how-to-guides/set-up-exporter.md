@@ -11,7 +11,7 @@ added (replace `<my-hub-address>` with the address or domain name of the *Hub*):
 Description=Board Farm Exporter For Place %I
 
 [Service]
-ExecStart=/usr/local/bin/not-my-board export https://<my-hub-address> /etc/not-my-board/%i.toml
+ExecStart=/usr/local/bin/not-my-board export https://<my-hub-address> /etc/not-my-board/export-descriptions/%i.toml
 Restart=on-failure
 RestartSec=10s
 
@@ -19,9 +19,9 @@ RestartSec=10s
 WantedBy=multi-user.target
 ```
 
-Create the export description in `/etc/not-my-board/`, for example:
+Create the export description in `/etc/not-my-board/export-descriptions`, for example:
 ```{code-block} toml
-:caption: /etc/not-my-board/example.toml
+:caption: /etc/not-my-board/export-descriptions/example.toml
 
 port = 29201
 
@@ -50,6 +50,6 @@ $ sudo systemctl enable --now not-my-board-exporter@example
 
 :::{note}
 The `example` instance name in the above command refers to the export
-description in `/etc/not-my-board/`. By changing the instance name, you can
-easily add new *Exporter* instances.
+description in `/etc/not-my-board/export-descriptions`. By changing the instance
+name, you can easily add new *Exporter* instances.
 :::
