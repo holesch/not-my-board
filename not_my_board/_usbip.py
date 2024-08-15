@@ -536,6 +536,7 @@ async def _main():
             server = util.Server(usbip_server.handle_client, port=args.port)
             async with server:
                 logger.info("listening")
+                print("ready", flush=True)  # noqa: T201
                 await server.serve_forever()
 
 

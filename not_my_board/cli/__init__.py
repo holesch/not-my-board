@@ -168,6 +168,7 @@ async def _export_command(args):
         args.hub_url, args.export_description, http_client, token_src
     ) as exporter:
         await exporter.register_place()
+        print("ready", flush=True)
         await exporter.serve_forever()
 
 
@@ -177,6 +178,7 @@ async def _agent_command(args):
     token_src = _token_src(args, http_client)
 
     async with agent.Agent(args.hub_url, io, token_src) as agent_:
+        print("ready", flush=True)
         await agent_.serve_forever()
 
 

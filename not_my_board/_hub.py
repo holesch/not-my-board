@@ -29,7 +29,22 @@ authenticator_var = contextvars.ContextVar("authenticator")
 
 
 def run_hub():
-    asgineer.run(asgi_app, "uvicorn", ":2092")
+    import socket
+
+    import uvicorn
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        host = "0.0.0.0"  # noqa: S104
+        port = 2092
+        s.bind((host, port))
+
+        s.listen()
+        print("ready", flush=True)  # noqa: T201
+
+        fd = s.fileno()
+        uvicorn.main([f"--fd={fd}", __name__ + ":asgi_app"])
 
 
 async def asgi_app(scope, receive, send):
