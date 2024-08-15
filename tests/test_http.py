@@ -179,7 +179,7 @@ class FakeWriter:
         return await self._queue.get()
 
 
-@pytest.fixture()
+@pytest.fixture
 def fake_server(monkeypatch):
     fake_server_ = FakeServer()
     monkeypatch.setattr(util, "connect", fake_server_.connect)
@@ -256,7 +256,7 @@ class FakeServer:
         self._reader.feed(data)
 
 
-@pytest.fixture()
+@pytest.fixture
 def fake_time(monkeypatch):
     fake_time_ = FakeTime()
     fake_datetime = fake_time_.fake_datetime()
@@ -284,7 +284,7 @@ class FakeTime:
         self._now += time
 
 
-@pytest.fixture()
+@pytest.fixture
 def http_client():
     return http.Client(proxies={})
 

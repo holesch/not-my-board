@@ -13,7 +13,7 @@ DEFAULT_EXPORTER_IP = "3.1.1.1"
 DEFAULT_AGENT_IP = "6.1.1.1"
 
 
-@pytest.fixture()
+@pytest.fixture
 def hub():
     return hubmodule.Hub()
 

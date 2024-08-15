@@ -209,7 +209,7 @@ class FakeAgentIO:
             del self.port_forwards[local_port]
 
 
-@pytest.fixture()
+@pytest.fixture
 async def agent_io():
     io = FakeAgentIO()
     async with agentmodule.Agent(HUB_URL, io, None) as agent:

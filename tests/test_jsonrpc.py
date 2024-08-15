@@ -73,7 +73,7 @@ class FakeTransport:
 Fakes = collections.namedtuple("Fakes", ["channel", "api", "transport"])
 
 
-@pytest.fixture()
+@pytest.fixture
 async def fakes():
     transport = FakeTransport()
     api = FakeApi()
