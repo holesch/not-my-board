@@ -25,18 +25,14 @@ async def tinyproxy():
 
 
 async def test_proxy_connect(tinyproxy):
-    async with sh_task("not-my-board hub", "hub"):
-        await wait_for_ports(2092)
-
+    async with sh_task("not-my-board hub", "hub", wait_ready=True):
         client = http.Client(proxies={"http": tinyproxy})
         response = await client.get_json("http://127.0.0.1:2092/api/v1/places")
         assert response == {"places": []}
 
 
 async def test_proxy_ignore():
-    async with sh_task("not-my-board hub", "hub"):
-        await wait_for_ports(2092)
-
+    async with sh_task("not-my-board hub", "hub", wait_ready=True):
         client = http.Client(
             proxies={"http": "http://non-existing.localhost", "no": "127.0.0.1"}
         )

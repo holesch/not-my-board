@@ -85,19 +85,22 @@ async def sh(cmd, check=True, strip=True, prefix=None):
 
 
 @contextlib.asynccontextmanager
-async def sh_task(cmd, prefix=None, terminate=True):
+async def sh_task(cmd, prefix=None, terminate=True, wait_ready=False):
     # need to exec, otherwise only the shell process is killed with
     # proc.terminate()
     proc = await asyncio.create_subprocess_shell(
         f"exec {cmd}",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+        stderr=asyncio.subprocess.PIPE if wait_ready else asyncio.subprocess.STDOUT,
     )
 
     logging_task = None
+    log_stream = proc.stderr if wait_ready else proc.stdout
     try:
-        logging_task = asyncio.create_task(_log_output(proc.stdout, cmd, prefix))
+        logging_task = asyncio.create_task(_log_output(log_stream, cmd, prefix))
+        if wait_ready:
+            await proc.stdout.readuntil(b"\n")
         yield
     finally:
         proc.stdin.close()

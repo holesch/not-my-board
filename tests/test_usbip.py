@@ -3,11 +3,8 @@ import pathlib
 
 async def test_raw_usb_forwarding(vms):
     async with vms.exporter.ssh_task_root(
-        "python3 -m not_my_board._usbip export 2-1", "usbip export"
+        "python3 -m not_my_board._usbip export 2-1", "usbip export", wait_ready=True
     ):
-        # wait for listening socket
-        await vms.exporter.ssh_poll("nc -z 127.0.0.1 3240")
-
         async with vms.client.ssh_task_root(
             "python3 -m not_my_board._usbip import exporter.local 2-1 0",
             "usbip import",
@@ -26,27 +23,15 @@ async def test_raw_usb_forwarding(vms):
 
 
 async def test_usb_forwarding(vms):
-    async with vms.hub.ssh_task("not-my-board hub", "hub"):
-        # wait for listening socket
-        await vms.hub.ssh_poll("nc -z 127.0.0.1 2092")
-
+    async with vms.hub.ssh_task("not-my-board hub", "hub", wait_ready=True):
         async with vms.exporter.ssh_task_root(
             "not-my-board export http://hub.local:2092 ./src/tests/qemu-usb-place.toml",
             "export",
+            wait_ready=True,
         ):
-            await vms.client.ssh("""'doas rm -f "/run/not-my-board-agent.sock"'""")
             async with vms.client.ssh_task_root(
-                "not-my-board agent http://hub.local:2092", "agent"
+                "not-my-board agent http://hub.local:2092", "agent", wait_ready=True
             ):
-                # wait until exported place is registered
-                await vms.client.ssh_poll(
-                    "wget -q -O - http://192.168.200.1:2092/api/v1/places | grep -q qemu-usb"
-                )
-                # wait until agent is ready
-                await vms.client.ssh_poll(
-                    """'test -e "/run/not-my-board-agent.sock"'"""
-                )
-
                 await vms.client.ssh("not-my-board attach ./src/tests/qemu-usb.toml")
                 # TODO attach still returns before the device is available.
                 # would be nice if it blocks until the device is ready.
