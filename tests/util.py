@@ -43,7 +43,7 @@ class _VM(util.ContextStack):
     async def ssh(self, cmd, *args, **kwargs):
         return await sh(f"./scripts/vmctl ssh {self._name} " + cmd, *args, **kwargs)
 
-    async def ssh_poll(self, cmd, timeout=None):
+    async def ssh_poll(self, cmd, timeout=None):  # noqa: ASYNC109
         return await sh_poll(f"./scripts/vmctl ssh {self._name} " + cmd, timeout)
 
 
@@ -115,7 +115,7 @@ async def sh_task(cmd, prefix=None, terminate=True, wait_ready=False):
             await logging_task
 
 
-async def sh_poll(cmd, timeout=None):
+async def sh_poll(cmd, timeout=None):  # noqa: ASYNC109
     if pathlib.Path("/dev/kvm").exists():
         if timeout is None:
             timeout = 7
@@ -146,7 +146,7 @@ async def _log_output(stream, cmd, prefix):
         sys.stderr.buffer.flush()
 
 
-async def wait_for_ports(*ports, timeout=7):
+async def wait_for_ports(*ports, timeout=7):  # noqa: ASYNC109
     async with util.timeout(timeout):
         while True:
             try:
