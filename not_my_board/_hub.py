@@ -61,18 +61,7 @@ async def _handle_lifespan(scope, receive, send):
         message = await receive()
         if message["type"] == "lifespan.startup":
             try:
-                config_file = os.environ.get("NOT_MY_BOARD_HUB_CONFIG")
-                if not config_file:
-                    config_file = "/etc/not-my-board/hub.toml"
-                config_file = pathlib.Path(config_file)
-
-                if config_file.exists():
-                    config = util.toml_loads(config_file.read_text())
-                else:
-                    config = {}
-
-                hub = Hub(config, http.Client())
-                await hub.startup()
+                hub = await _on_startup()
                 scope["state"]["hub"] = hub
             except Exception as err:
                 await send({"type": "lifespan.startup.failed", "message": str(err)})
@@ -88,6 +77,24 @@ async def _handle_lifespan(scope, receive, send):
             return
         else:
             logger.warning("Unknown lifespan message %s", message["type"])
+
+
+async def _on_startup():
+    config_file = os.environ.get("NOT_MY_BOARD_HUB_CONFIG")
+    if not config_file:
+        config_file = "/etc/not-my-board/hub.toml"
+    config_file = pathlib.Path(config_file)
+
+    if config_file.exists():
+        config = util.toml_loads(config_file.read_text())
+    else:
+        logger.warning('Config file "%s" not found', config_file)
+        config = {}
+
+    hub = Hub(config, http.Client())
+    await hub.startup()
+
+    return hub
 
 
 @asgineer.to_asgi
