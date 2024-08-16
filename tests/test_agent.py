@@ -211,8 +211,8 @@ async def test_attach(agent_io):
     port_num = 1
     proxy = (PLACE_1.host, PLACE_1.port)
     usbip_target = ("usb.not-my-board.localhost", 3240)
-    usbip = PLACE_1.parts[0].usb["usb0"].usbid
-    assert agent_io.attached == {port_num: (proxy, usbip_target, usbip)}
+    usbid = PLACE_1.parts[0].usb["usb0"].usbid
+    assert agent_io.attached == {port_num: (proxy, usbip_target, usbid)}
     local_port = 2222
     tcp_target = tuple(
         getattr(PLACE_1.parts[0].tcp["ssh"], k) for k in ("host", "port")
