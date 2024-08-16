@@ -10,7 +10,6 @@ not-my-board is a tool to manage a pool of embedded hardware setups and to
 schedule and provide access to those setups over a local network. The concept is
 known as a *board farm*.
 
-Check out the **[Documentation]** for installation and usage information
-details.
+Check out the **[Documentation]** for installation and usage information.
 
 [Documentation]: http://not-my-board.readthedocs.io
