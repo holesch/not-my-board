@@ -17,6 +17,9 @@ class LoginFlow(util.ContextStack):
         self._show_claims = None
         self._token_store = _TokenStore(token_store_path)
 
+        # fail early, if user doesn't have permission
+        self._token_store.check_access()
+
     async def _context_stack(self, stack):
         url = f"{self._hub_url}/api/v1/auth-info"
         auth_info = await self._http.get_json(url)
@@ -114,16 +117,15 @@ class IdTokenFromCmd:
 
 class _TokenStore(util.ContextStack):
     def __init__(self, path_str=None):
-        path = pathlib.Path(path_str)
+        self._path = pathlib.Path(path_str)
 
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch(mode=0o600)
+    def check_access(self):
+        if not self._path.exists():
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._path.touch(mode=0o600)
 
-        if not os.access(path, os.R_OK | os.W_OK):
-            raise RuntimeError(f"Not allowed to access {path}")
-
-        self._path = path
+        if not os.access(self._path, os.R_OK | os.W_OK):
+            raise RuntimeError(f"Not allowed to access {self._path}")
 
     async def _context_stack(self, stack):
         self._f = stack.enter_context(self._path.open("r+"))
