@@ -1,7 +1,7 @@
 # Installation
 
-Since you'll need to run `not-my-board` as root user to export USB devices,
-you should install it globally in an isolated environment with [`pipx`][1].
+Since you'll need to run `not-my-board` as root user for some operations, you
+should install it globally in an isolated environment with [`pipx`][1].
 
 [1]: https://pypa.github.io/pipx/
 
