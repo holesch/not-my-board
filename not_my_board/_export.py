@@ -102,6 +102,11 @@ class Exporter(util.ContextStack):
 
             await self._tunnel(reader, writer, target, trailing_data)
         else:
+            logger.debug(
+                "Denying request for client %s, expected %s",
+                client_ip,
+                list(self._ip_to_tasks_map),
+            )
             await con.deny_request()
 
     async def _tunnel(self, client_r, client_w, target, trailing_data):
