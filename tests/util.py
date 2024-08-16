@@ -151,9 +151,9 @@ async def wait_for_ports(*ports, timeout=7):  # noqa: ASYNC109
         while True:
             try:
                 for port in ports:
-                    async with util.connect("127.0.0.1", port):
+                    async with util.connect("localhost", port):
                         pass
-            except ConnectionRefusedError:
+            except (ConnectionRefusedError, OSError):
                 await asyncio.sleep(0.1)
                 continue
             break
