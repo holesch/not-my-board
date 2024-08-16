@@ -9,6 +9,37 @@ The *Agent* uses this import description to reserve one of the matching
 
 ## Settings
 
+### `auto_return_time`
+
+**Type:** String \
+**Required:** No \
+**Default:** `"10h"`
+
+Delay after which the reservation is automatically returned. The timer is reset
+after editing the import description with the `not-my-board edit` command. The
+time format uses a sequence of positive integers followed by lowercase time
+units:
+
+:::{table}
+:align: left
+
+Unit | Description
+---- | -----------
+`w`  | weeks
+`d`  | days
+`h`  | hours
+`m`  | minutes
+`s`  | seconds (optional)
+:::
+
+Units must appear in descending order of significance (e.g. weeks before days).
+A delay of `0` disables the auto return.
+
+Examples:
+- `600`: 600 seconds or 10 minutes
+- `10m`: 10 minutes
+- `1h30m`: 1 hour 30 minutes (90 minutes)
+
 ### `parts`
 
 **Type:** Table \

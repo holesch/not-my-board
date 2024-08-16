@@ -12,7 +12,7 @@ import traceback
 import urllib.parse
 import weakref
 from dataclasses import dataclass, field
-from typing import Mapping, Tuple
+from typing import Mapping, Optional, Tuple
 
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
@@ -135,15 +135,21 @@ class Agent(util.ContextStack):
         await self._unix_server.serve_forever()
 
     async def _cleanup(self):
+        # The auto return tasks might currently close tunnels. Cancel auto
+        # return tasks first.
+        await util.cancel_tasks(
+            [r.auto_return_task for r in self._reservations.values()]
+        )
+
         coros = [
             t.close() for r in self._reservations.values() for t in r.tunnels.values()
         ]
-
         await util.run_concurrently(*coros)
 
     async def reserve(self, name, import_description_toml):
         parsed = util.toml_loads(import_description_toml)
         import_description = models.ImportDesc(name=name, **parsed)
+        auto_return_time = util.parse_time(import_description.auto_return_time)
 
         async with self._name_lock(name):
             if name in self._reservations:
@@ -169,8 +175,12 @@ class Agent(util.ContextStack):
                 desc: desc.tunnel_cls(desc, self._hub_host, self._io)
                 for desc in tunnel_descs_by_id[place_id]
             }
+
+            coro = self._auto_return(name, auto_return_time)
+            auto_return_task = asyncio.create_task(coro)
+
             self._reservations[name] = _Reservation(
-                import_description_toml, place, tunnels
+                import_description_toml, place, tunnels, auto_return_task
             )
 
     async def return_reservation(self, name, force=False):
@@ -181,6 +191,7 @@ class Agent(util.ContextStack):
                 else:
                     raise RuntimeError(f'Place "{name}" is still attached')
             await self._hub.return_reservation(reservation.place.id)
+            await util.cancel_tasks([reservation.auto_return_task])
             del self._reservations[name]
 
     async def attach(self, name):
@@ -205,6 +216,23 @@ class Agent(util.ContextStack):
         coros = [t.close() for t in reservation.tunnels.values()]
         await util.run_concurrently(*coros)
         reservation.is_attached = False
+
+    async def _auto_return(self, name, timeout):  # noqa: ASYNC109
+        try:
+            if timeout == 0:
+                # disable auto return, wait forever
+                await asyncio.Event().wait()
+
+            await asyncio.sleep(timeout)
+            logger.info('Auto return timeout: Returning place "%s"', name)
+
+            async with self._reservation(name) as reservation:
+                if reservation.is_attached:
+                    await self._detach_reservation(reservation)
+                await self._hub.return_reservation(reservation.place.id)
+                del self._reservations[name]
+        except Exception as e:
+            logger.warning("Auto return failed: %s", e)
 
     @contextlib.asynccontextmanager
     async def _name_lock(self, name):
@@ -253,6 +281,7 @@ class Agent(util.ContextStack):
         async with self._reservation(name) as reservation:
             parsed = util.toml_loads(import_description_toml)
             import_description = models.ImportDesc(name=name, **parsed)
+            auto_return_time = util.parse_time(import_description.auto_return_time)
 
             imported_part_sets = [
                 (name, _part_to_set(imported_part))
@@ -297,6 +326,11 @@ class Agent(util.ContextStack):
                         t.open() for desc, t in new_tunnels.items() if desc in to_add
                     ]
                     await util.run_concurrently(*coros)
+
+            # refresh auto return
+            await util.cancel_tasks([reservation.auto_return_task])
+            coro = self._auto_return(name, auto_return_time)
+            reservation.auto_return_task = asyncio.create_task(coro)
 
             # everything ok: update reservation
             reservation.import_description_toml = import_description_toml
@@ -496,6 +530,7 @@ class _Reservation:
     place: models.Place
     is_attached: bool = field(default=False, init=False)
     tunnels: Mapping[_TunnelDesc, _Tunnel]
+    auto_return_task: Optional[asyncio.Task]
 
 
 class ProtocolError(Exception):
