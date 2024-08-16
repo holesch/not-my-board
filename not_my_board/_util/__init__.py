@@ -12,6 +12,7 @@ from ._asyncio import (
     run_concurrently,
 )
 from ._matching import find_matching
+from ._parser import parse_time
 
 try:
     from tomllib import loads as toml_loads

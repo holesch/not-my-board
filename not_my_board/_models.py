@@ -21,6 +21,7 @@ class ImportedPart(pydantic.BaseModel):
 
 class ImportDesc(pydantic.BaseModel):
     name: str
+    auto_return_time: str = "10h"
     parts: Dict[str, ImportedPart]
 
 
