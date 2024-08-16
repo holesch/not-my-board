@@ -17,7 +17,24 @@ Log out and log back in again for the changes to take effect.
 
 ## Configuring the Service
 
-Create a `systemd` service file (replace `<my-hub-address>` with the address or
+Configure `systemd` to create and listen on a Unix domain socket:
+```{code-block} systemd
+:caption: /etc/systemd/system/not-my-board-agent.socket
+
+[Unit]
+Description=Board Farm Agent Socket
+
+[Socket]
+ListenStream=/run/not-my-board-agent.sock
+SocketGroup=not-my-board
+SocketMode=0660
+
+[Install]
+WantedBy=sockets.target
+```
+
+Then create a `systemd` service, that is started, the fist time a `not-my-board`
+command connects to the *Agent* (replace `<my-hub-address>` with the address or
 domain name of the *Hub*):
 ```{code-block} systemd
 :caption: /etc/systemd/system/not-my-board-agent.service
@@ -26,10 +43,9 @@ domain name of the *Hub*):
 Description=Board Farm Agent
 
 [Service]
-ExecStart=/usr/local/bin/not-my-board agent https://<my-hub-address>
-
-[Install]
-WantedBy=multi-user.target
+ExecStart=/usr/local/bin/not-my-board agent --fd 0 https://<my-hub-address>
+StandardInput=socket
+StandardOutput=journal
 ```
 
 If authentication is configured in the *Hub*, log in:
@@ -37,7 +53,7 @@ If authentication is configured in the *Hub*, log in:
 $ sudo not-my-board login https://<my-hub-address>
 ```
 
-Enable and start the service:
+Enable and start the socket:
 ```console
-$ sudo systemctl enable --now not-my-board-agent
+$ sudo systemctl enable --now not-my-board-agent.socket
 ```

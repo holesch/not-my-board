@@ -7,6 +7,7 @@ import ipaddress
 import logging
 import pathlib
 import shutil
+import socket
 import traceback
 import urllib.parse
 import weakref
@@ -24,9 +25,10 @@ Address = Tuple[str, int]
 
 
 class AgentIO:
-    def __init__(self, hub_url, http_client):
+    def __init__(self, hub_url, http_client, unix_server_fd=None):
         self._hub_url = hub_url
         self._http = http_client
+        self._unix_server_fd = unix_server_fd
 
     @contextlib.asynccontextmanager
     async def hub_rpc(self):
@@ -36,10 +38,15 @@ class AgentIO:
 
     @contextlib.asynccontextmanager
     async def unix_server(self, api_obj):
-        socket_path = pathlib.Path("/run") / "not-my-board-agent.sock"
+        if self._unix_server_fd is not None:
+            s = socket.socket(fileno=self._unix_server_fd)
+        else:
+            socket_path = pathlib.Path("/run") / "not-my-board-agent.sock"
+            if socket_path.is_socket():
+                socket_path.unlink(missing_ok=True)
 
-        connection_handler = functools.partial(self._handle_unix_client, api_obj)
-        async with util.UnixServer(connection_handler, socket_path) as unix_server:
+            s = socket.socket(family=socket.AF_UNIX)
+            s.bind(socket_path.as_posix())
             socket_path.chmod(0o660)
             try:
                 shutil.chown(socket_path, group="not-my-board")
@@ -48,6 +55,8 @@ class AgentIO:
                     'Failed to change group on agent socket "%s": %s', socket_path, e
                 )
 
+        connection_handler = functools.partial(self._handle_unix_client, api_obj)
+        async with util.UnixServer(connection_handler, sock=s) as unix_server:
             yield unix_server
 
     @staticmethod

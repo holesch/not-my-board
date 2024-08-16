@@ -11,7 +11,7 @@ Here's a description of all the commands and options `not-my-board` supports.
 **`export`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] \[**`--token-cmd`** *token_cmd*\] *hub_url* *export_description*
 : Make connected boards and equipment available in the board farm.
 
-**`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] \[**`--token-cmd`** *token_cmd*\] *hub_url*
+**`agent`** \[**`-h`**|**`--help`**\] \[**`--cacert`** *cacert*\] \[**`--token-cmd`** *token_cmd*\] \[**`--fd`** *fd*\] *hub_url*
 : Start an *Agent*.
 
 **`login`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`--cacert`** *cacert*\] *hub_url*
@@ -64,6 +64,11 @@ right after the placeholder. A `$` can be escaped with `$$`.
 
 This option is an alternative to the `login` command. It can be used in
 non-interactive environments.
+```
+
+```{option} --fd fd
+Use file descriptor *fd*, instead of creating the listening socket. Should be a
+Unix domain socket with the address `/run/not-my-board-agent.sock`.
 ```
 
 ```{option} hub_url

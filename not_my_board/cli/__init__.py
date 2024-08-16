@@ -72,6 +72,9 @@ def main():
     subparser.set_defaults(verbose=True)
     add_cacert_arg(subparser)
     subparser.add_argument("--token-cmd", help="generate ID tokens with shell command")
+    subparser.add_argument(
+        "--fd", type=int, help="listen on socket from this file descriptor"
+    )
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
 
     subparser = add_subcommand("reserve", help="reserve a place")
@@ -174,11 +177,12 @@ async def _export_command(args):
 
 async def _agent_command(args):
     http_client = http.Client(args.cacert)
-    io = agent.AgentIO(args.hub_url, http_client)
+    io = agent.AgentIO(args.hub_url, http_client, args.fd)
     token_src = _token_src(args, http_client)
 
     async with agent.Agent(args.hub_url, io, token_src) as agent_:
-        print("ready", flush=True)
+        if args.fd is None:
+            print("ready", flush=True)
         await agent_.serve_forever()
 
 
