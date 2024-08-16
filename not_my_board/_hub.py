@@ -33,10 +33,11 @@ def run_hub():
 
     import uvicorn
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
+        s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 
-        host = "0.0.0.0"  # noqa: S104
+        host = "::"
         port = 2092
         s.bind((host, port))
 
