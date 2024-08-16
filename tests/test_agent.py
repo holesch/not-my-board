@@ -65,68 +65,37 @@ PLACE_COMPLEX = models.Place(
     ],
 )
 
-IMPORT_DESC_1 = models.ImportDesc(
-    name="fake",
-    parts={
-        "fake-board": models.ImportedPart(
-            compatible=["fake-board"],
-            usb={
-                "usb0": models.UsbImportDesc(port_num=1),
-            },
-            tcp={
-                "ssh": models.TcpImportDesc(local_port=2222),
-            },
-        )
-    },
-)
+IMPORT_DESC_1 = """
+    [parts.fake-board]
+    compatible = [ "fake-board" ]
+    usb.usb0 = { port_num = 1 }
+    tcp.ssh = { local_port = 2222 }
+"""
 
-IMPORT_DESC_NOT_FOUND = models.ImportDesc(
-    name="fake",
-    parts={
-        "fake-board": models.ImportedPart(
-            compatible=["does-not-exist"],
-        )
-    },
-)
+IMPORT_DESC_NOT_FOUND = """
+    [parts.fake-board]
+    compatible = [ "does-not-exist" ]
+"""
 
-IMPORT_DESC_COMPLEX = models.ImportDesc(
-    name="fake",
-    parts={
-        "fake-board-ssh": models.ImportedPart(
-            compatible=["fake-board"],
-            tcp={
-                "ssh": models.TcpImportDesc(local_port=2222),
-            },
-        ),
-        "fake-board-usb": models.ImportedPart(
-            compatible=["fake-board"],
-            usb={
-                "usb0": models.UsbImportDesc(port_num=1),
-            },
-        ),
-    },
-)
+IMPORT_DESC_COMPLEX = """
+    [parts.fake-board-ssh]
+    compatible = [ "fake-board" ]
+    tcp.ssh = { local_port = 2222 }
+    [parts.fake-board-usb]
+    compatible = [ "fake-board" ]
+    usb.usb0 = { port_num = 1 }
+"""
 
-IMPORT_DESC_COMPLEX_NOT_FOUND = models.ImportDesc(
-    name="fake",
-    parts={
-        "fake-board-ssh": models.ImportedPart(
-            compatible=["fake-board"],
-            tcp={
-                "ssh": models.TcpImportDesc(local_port=2222),
-            },
-        ),
-        "fake-board-usb": models.ImportedPart(
-            compatible=["fake-board"],
-            usb={
-                "usb0": models.UsbImportDesc(port_num=1),
-            },
-        ),
-        "fake-board-any": models.ImportedPart(
-            compatible=["fake-board"],
-        ),
-    },
-)
+IMPORT_DESC_COMPLEX_NOT_FOUND = """
+    [parts.fake-board-ssh]
+    compatible = [ "fake-board" ]
+    tcp.ssh = { local_port = 2222 }
+    [parts.fake-board-usb]
+    compatible = [ "fake-board" ]
+    usb.usb0 = { port_num = 1 }
+    [parts.fake-board-any]
+    compatible = [ "fake-board" ]
+"""
 
 
 class FakeHub:
@@ -229,7 +198,7 @@ async def test_idle_status(agent_io):
 
 async def test_reserve(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     assert agent_io.hub.reserve_request == [PLACE_1.id]
     assert agent_io.hub.reserved == {PLACE_1.id}
 
@@ -237,14 +206,14 @@ async def test_reserve(agent_io):
 async def test_attach(agent_io):
     agent_io.places = [PLACE_1]
 
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
-    port_num = IMPORT_DESC_1.parts["fake-board"].usb["usb0"].port_num
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
+    port_num = 1
     proxy = (PLACE_1.host, PLACE_1.port)
     usbip_target = ("usb.not-my-board.localhost", 3240)
     usbip = PLACE_1.parts[0].usb["usb0"].usbid
     assert agent_io.attached == {port_num: (proxy, usbip_target, usbip)}
-    local_port = IMPORT_DESC_1.parts["fake-board"].tcp["ssh"].local_port
+    local_port = 2222
     tcp_target = tuple(
         getattr(PLACE_1.parts[0].tcp["ssh"], k) for k in ("host", "port")
     )
@@ -253,22 +222,22 @@ async def test_attach(agent_io):
 
 async def test_list_place_1(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     list_ = await agent_io.agent_api.list()
     assert list_ == [{"place": "fake", "attached": False}]
 
 
 async def test_list_place_1_attached(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
     list_ = await agent_io.agent_api.list()
     assert list_ == [{"place": "fake", "attached": True}]
 
 
 async def test_status_place_1(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     status = await agent_io.agent_api.status()
     assert len(status) == 2
     usb0_status = {
@@ -291,8 +260,8 @@ async def test_status_place_1(agent_io):
 
 async def test_status_place_1_attached(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
     status = await agent_io.agent_api.status()
     assert len(status) == 2
     assert status[0]["attached"] is True
@@ -301,24 +270,24 @@ async def test_status_place_1_attached(agent_io):
 
 async def test_reserve_twice(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
+        await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     assert "is already reserved" in str(execinfo.value)
 
 
 async def test_return_reservation(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.return_reservation(IMPORT_DESC_1.name)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.return_reservation("fake")
     assert not agent_io.hub.reserved
 
 
 async def test_detach(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
-    await agent_io.agent_api.detach(IMPORT_DESC_1.name)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
+    await agent_io.agent_api.detach("fake")
     assert not agent_io.attached
     assert not agent_io.port_forwards
 
@@ -330,18 +299,18 @@ async def test_detach(agent_io):
 
 async def test_return_reservation_while_attached(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
     with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.return_reservation(IMPORT_DESC_1.name)
+        await agent_io.agent_api.return_reservation("fake")
     assert "is still attached" in str(execinfo.value)
 
 
 async def test_force_return_reservation(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
-    await agent_io.agent_api.return_reservation(name=IMPORT_DESC_1.name, force=True)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
+    await agent_io.agent_api.return_reservation(name="fake", force=True)
     assert not agent_io.attached
     assert not agent_io.port_forwards
     assert not agent_io.hub.reserved
@@ -349,14 +318,14 @@ async def test_force_return_reservation(agent_io):
 
 async def test_return_unreserved_place(agent_io):
     with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.return_reservation(IMPORT_DESC_1.name)
+        await agent_io.agent_api.return_reservation("fake")
     assert "is not reserved" in str(execinfo.value)
 
 
 async def test_no_match_found(agent_io):
     agent_io.places = [PLACE_1]
     with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.reserve(IMPORT_DESC_NOT_FOUND.dict())
+        await agent_io.agent_api.reserve("fake", IMPORT_DESC_NOT_FOUND)
     assert "No matching place found" in str(execinfo.value)
 
 
@@ -364,9 +333,9 @@ async def test_localhost_exporter(agent_io):
     """This happens if the Hub and an Exporter run on the same host"""
     agent_io.places = [PLACE_LOCALHOST]
 
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
-    port_num = IMPORT_DESC_1.parts["fake-board"].usb["usb0"].port_num
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
+    port_num = 1
     # place host needs to be replaced with hub host
     proxy = ("fake.farm", PLACE_1.port)
     assert agent_io.attached[port_num][0] == proxy
@@ -374,33 +343,33 @@ async def test_localhost_exporter(agent_io):
 
 async def test_attach_twice(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
     with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.attach(IMPORT_DESC_1.name)
+        await agent_io.agent_api.attach("fake")
     assert "is already attached" in str(execinfo.value)
 
 
 async def test_detach_twice(agent_io):
     agent_io.places = [PLACE_1]
-    await agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    await agent_io.agent_api.attach(IMPORT_DESC_1.name)
-    await agent_io.agent_api.detach(IMPORT_DESC_1.name)
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
+    await agent_io.agent_api.detach("fake")
     with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.detach(IMPORT_DESC_1.name)
+        await agent_io.agent_api.detach("fake")
     assert "is not attached" in str(execinfo.value)
 
 
 async def test_complex_match(agent_io):
     agent_io.places = [PLACE_COMPLEX]
-    await agent_io.agent_api.reserve(IMPORT_DESC_COMPLEX.dict())
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_COMPLEX)
     assert await agent_io.agent_api.list()
 
 
 async def test_complex_match_not_found(agent_io):
     agent_io.places = [PLACE_COMPLEX]
     with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.reserve(IMPORT_DESC_COMPLEX_NOT_FOUND.dict())
+        await agent_io.agent_api.reserve("fake", IMPORT_DESC_COMPLEX_NOT_FOUND)
     assert "No matching place found" in str(execinfo.value)
 
 
@@ -411,8 +380,8 @@ async def test_reserve_twice_concurrently(agent_io):
     agent_io.hub.reserve_continue.clear()
 
     # start two reserve tasks in parallel
-    coro_1 = agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
-    coro_2 = agent_io.agent_api.reserve(IMPORT_DESC_1.dict())
+    coro_1 = agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    coro_2 = agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
 
     with pytest.raises(RuntimeError) as execinfo:
         async with util.background_task(coro_1) as task_1:

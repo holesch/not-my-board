@@ -7,17 +7,16 @@ import os
 import pathlib
 
 import not_my_board._jsonrpc as jsonrpc
-import not_my_board._models as models
-import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
 
 
 async def reserve(import_description, with_name=None):
-    found_import_desc = _find_import_description(import_description, with_name)
+    result = _find_import_description(import_description, with_name)
+    reservation_name, import_description_toml = result
 
     async with agent_channel() as agent:
-        await agent.reserve(found_import_desc.dict())
+        await agent.reserve(reservation_name, import_description_toml)
 
 
 async def return_reservation(name):
@@ -36,9 +35,10 @@ async def attach(name, keep_others=False):
                 for other in others:
                     await agent.return_reservation(name=other, force=True)
         else:
-            found_import_desc = _find_import_description(name)
-            await agent.reserve(found_import_desc.dict())
-            await agent.attach(found_import_desc.name)
+            result = _find_import_description(name)
+            reservation_name, import_description_toml = result
+            await agent.reserve(reservation_name, import_description_toml)
+            await agent.attach(reservation_name)
 
             if not keep_others and reserved_names:
                 for other in reserved_names:
@@ -104,12 +104,8 @@ def _find_import_description(name, with_name=None):
                 raise ValueError(f"No import description file exists for name {name}")
 
     reservation_name = with_name if with_name else import_description_file.stem
-    import_description_content = util.toml_loads(import_description_file.read_text())
-    import_description = models.ImportDesc(
-        name=reservation_name, **import_description_content
-    )
-
-    return import_description
+    import_description_content = import_description_file.read_text()
+    return reservation_name, import_description_content
 
 
 @contextlib.asynccontextmanager

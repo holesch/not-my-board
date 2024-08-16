@@ -135,9 +135,9 @@ class Agent(util.ContextStack):
 
         await util.run_concurrently(*coros)
 
-    async def reserve(self, import_description):
-        import_description = models.ImportDesc(**import_description)
-        name = import_description.name
+    async def reserve(self, name, import_description_toml):
+        parsed = util.toml_loads(import_description_toml)
+        import_description = models.ImportDesc(name=name, **parsed)
 
         async with self._name_lock(name):
             if name in self._reservations:
