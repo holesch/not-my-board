@@ -96,11 +96,10 @@ class AgentIO:
         await asyncio.sleep(2)
 
     async def port_forward(self, ready_event, proxy, target, local_port):
-        localhost = "127.0.0.1"
         connection_handler = functools.partial(
             self._handle_port_forward_client, proxy, target
         )
-        async with util.Server(connection_handler, localhost, local_port) as server:
+        async with util.Server(connection_handler, "localhost", local_port) as server:
             ready_event.set()
             await server.serve_forever()
 
