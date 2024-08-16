@@ -105,7 +105,7 @@ def main():
     subparser.add_argument(
         "-k", "--keep", action="store_true", help="don't return reservation"
     )
-    subparser.add_argument("name", help="name of the place to attach")
+    subparser.add_argument("name", help="name of the place to detach")
 
     subparser = add_subcommand("list", help="list reserved places")
     add_verbose_arg(subparser)
@@ -125,10 +125,14 @@ def main():
     add_verbose_arg(subparser)
     subparser.add_argument("devpath", help="devpath attribute of uevent")
 
-    subparser = add_subcommand("login", help="Log in to a hub")
+    subparser = add_subcommand("login", help="log in to a hub")
     add_verbose_arg(subparser)
     add_cacert_arg(subparser)
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
+
+    subparser = add_subcommand("edit", help="edit a reserved place")
+    add_verbose_arg(subparser)
+    subparser.add_argument("name", help="name of the place to edit")
 
     args = parser.parse_args()
 
@@ -270,6 +274,10 @@ async def _login_command(args):
         print(f"{Format.GREEN}{Format.BOLD}{msg}{Format.RESET}")
         for key, value in claims.items():
             print(f"{Format.BOLD}{key}: {Format.RESET}{value}")
+
+
+async def _edit_command(args):
+    await client.edit(args.name)
 
 
 class Format:

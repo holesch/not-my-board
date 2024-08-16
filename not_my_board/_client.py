@@ -5,6 +5,7 @@ import contextlib
 import logging
 import os
 import pathlib
+import tempfile
 
 import not_my_board._jsonrpc as jsonrpc
 
@@ -60,6 +61,38 @@ async def list_():
 async def status():
     async with agent_channel() as agent:
         return await agent.status()
+
+
+async def edit(name):
+    async with agent_channel() as agent:
+        import_description_toml = await agent.get_import_description(name)
+        new_content = None
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".toml", delete_on_close=False
+            ) as file:
+                file.write(import_description_toml)
+                file.close()
+
+                editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
+                proc = await asyncio.create_subprocess_exec(editor, file.name)
+                await proc.wait()
+
+                new_content = pathlib.Path(file.name).read_text()
+
+                if proc.returncode:
+                    raise RuntimeError(f"{editor!r} exited with {proc.returncode}")
+
+            await agent.update_import_description(name, new_content)
+        except Exception as e:
+            if new_content is not None:
+                message = (
+                    "Failed to edit, here is your changed import description for reference:\n"
+                    + new_content.rstrip()
+                )
+                raise RuntimeError(message) from e
+            raise
 
 
 async def uevent(devpath):

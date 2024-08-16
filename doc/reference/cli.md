@@ -37,6 +37,14 @@ Here's a description of all the commands and options `not-my-board` supports.
 **`status`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : Show status of attached places and its interfaces.
 
+**`edit`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *name*
+: Edit the import description of a reserved or attached place. It opens a
+  temporary file with the current import description with the configured editor.
+  After the editor is closed, the reservation is updated. The editor used is
+  chosen from the `VISUAL` or the `EDITOR` environment variable, in that order.
+  If none is set, then `vi` is used. This doesn't modify the actual import
+  description used to attach the place.
+
 **`uevent`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *devpath*
 : Handle Kernel uevent for USB devices. This should be called by the device
   manager, e.g. *udev*(7).

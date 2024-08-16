@@ -12,7 +12,7 @@ import traceback
 import urllib.parse
 import weakref
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import Mapping, Tuple
 
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
@@ -88,8 +88,12 @@ class AgentIO:
             return await usbip.attach(reader, writer, usbid, port_num)
 
     @staticmethod
-    def usbip_detach(vhci_port):
+    async def usbip_detach(vhci_port):
         usbip.detach(vhci_port)
+        # Unfortunately it takes ~ 0.5 seconds for the connection to close and
+        # for the remote device to be available again. Wait a bit, so an
+        # immediate attach after the detach succeeds.
+        await asyncio.sleep(2)
 
     async def port_forward(self, ready_event, proxy, target, local_port):
         localhost = "127.0.0.1"
@@ -131,7 +135,9 @@ class Agent(util.ContextStack):
         await self._unix_server.serve_forever()
 
     async def _cleanup(self):
-        coros = [t.close() for r in self._reservations.values() for t in r.tunnels]
+        coros = [
+            t.close() for r in self._reservations.values() for t in r.tunnels.values()
+        ]
 
         await util.run_concurrently(*coros)
 
@@ -145,18 +151,27 @@ class Agent(util.ContextStack):
 
             places = await self._io.get_places()
 
-            candidates = _filter_places(import_description, places)
-            if not candidates:
+            tunnel_descs_by_id = _filter_places(import_description, places)
+            if not tunnel_descs_by_id:
                 raise RuntimeError("No matching place found")
 
-            candidate_ids = list(candidates)
+            candidate_ids = list(tunnel_descs_by_id)
             place_id = await self._hub.reserve(candidate_ids)
 
-            tunnels = [
-                desc.tunnel_cls(desc, self._hub_host, self._io)
-                for desc in candidates[place_id]
-            ]
-            self._reservations[name] = _Reservation(place_id, tunnels)
+            for p in places:
+                if p.id == place_id:
+                    place = p
+                    break
+            else:
+                raise RuntimeError("Hub returned invalid Place ID")
+
+            tunnels = {
+                desc: desc.tunnel_cls(desc, self._hub_host, self._io)
+                for desc in tunnel_descs_by_id[place_id]
+            }
+            self._reservations[name] = _Reservation(
+                import_description_toml, place, tunnels
+            )
 
     async def return_reservation(self, name, force=False):
         async with self._reservation(name) as reservation:
@@ -165,7 +180,7 @@ class Agent(util.ContextStack):
                     await self._detach_reservation(reservation)
                 else:
                     raise RuntimeError(f'Place "{name}" is still attached')
-            await self._hub.return_reservation(reservation.place_id)
+            await self._hub.return_reservation(reservation.place.id)
             del self._reservations[name]
 
     async def attach(self, name):
@@ -173,7 +188,7 @@ class Agent(util.ContextStack):
             if reservation.is_attached:
                 raise RuntimeError(f'Place "{name}" is already attached')
 
-            coros = [t.open() for t in reservation.tunnels]
+            coros = [t.open() for t in reservation.tunnels.values()]
 
             async with util.on_error(self._detach_reservation, reservation):
                 await util.run_concurrently(*coros)
@@ -187,7 +202,7 @@ class Agent(util.ContextStack):
             await self._detach_reservation(reservation)
 
     async def _detach_reservation(self, reservation):
-        coros = [t.close() for t in reservation.tunnels]
+        coros = [t.close() for t in reservation.tunnels.values()]
         await util.run_concurrently(*coros)
         reservation.is_attached = False
 
@@ -227,8 +242,65 @@ class Agent(util.ContextStack):
                 "attached": tunnel.is_attached(),
             }
             for name, reservation in self._reservations.items()
-            for tunnel in reservation.tunnels
+            for tunnel in reservation.tunnels.values()
         ]
+
+    async def get_import_description(self, name):
+        async with self._reservation(name) as reservation:
+            return reservation.import_description_toml
+
+    async def update_import_description(self, name, import_description_toml):
+        async with self._reservation(name) as reservation:
+            parsed = util.toml_loads(import_description_toml)
+            import_description = models.ImportDesc(name=name, **parsed)
+
+            imported_part_sets = [
+                (name, _part_to_set(imported_part))
+                for name, imported_part in import_description.parts.items()
+            ]
+
+            matching = _find_matching(imported_part_sets, reservation.place)
+            if not matching:
+                raise RuntimeError("New import description doesn't match with place")
+
+            new_tunnel_descs = _create_tunnel_descriptions(
+                import_description, reservation.place, matching
+            )
+
+            old_tunnel_descs = reservation.tunnels.keys()
+
+            to_remove = old_tunnel_descs - new_tunnel_descs
+            to_add = new_tunnel_descs - old_tunnel_descs
+            to_keep = old_tunnel_descs & new_tunnel_descs
+
+            new_tunnels = {
+                desc: desc.tunnel_cls(desc, self._hub_host, self._io) for desc in to_add
+            }
+            for desc in to_keep:
+                new_tunnels[desc] = reservation.tunnels[desc]
+
+            if reservation.is_attached:
+                # close removed tunnels
+                removed_tunnels = [
+                    t for desc, t in reservation.tunnels.items() if desc in to_remove
+                ]
+                coros = [t.close() for t in removed_tunnels]
+                await util.run_concurrently(*coros)
+
+                async def restore_removed():
+                    coros = [t.open() for t in removed_tunnels]
+                    await util.run_concurrently(*coros)
+
+                async with util.on_error(restore_removed):
+                    # open added tunnels
+                    coros = [
+                        t.open() for desc, t in new_tunnels.items() if desc in to_add
+                    ]
+                    await util.run_concurrently(*coros)
+
+            # everything ok: update reservation
+            reservation.import_description_toml = import_description_toml
+            reservation.tunnels = new_tunnels
 
 
 def _filter_places(import_description, places):
@@ -360,7 +432,7 @@ class _UsbTunnel(_Tunnel):
     async def close(self):
         await super().close()
         if self._vhci_port is not None:
-            self._io.usbip_detach(self._vhci_port)
+            await self._io.usbip_detach(self._vhci_port)
 
     async def _task_func(self):
         retry_timeout = 1
@@ -420,9 +492,10 @@ class _TcpTunnelDesc(_TunnelDesc):
 
 @dataclass
 class _Reservation:
-    place_id: int
+    import_description_toml: str
+    place: models.Place
     is_attached: bool = field(default=False, init=False)
-    tunnels: List[_Tunnel]
+    tunnels: Mapping[_TunnelDesc, _Tunnel]
 
 
 class ProtocolError(Exception):

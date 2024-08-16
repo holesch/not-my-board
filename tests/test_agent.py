@@ -163,7 +163,7 @@ class FakeAgentIO:
         self.detach_event[port_num] = asyncio.Event()
         return port_num
 
-    def usbip_detach(self, vhci_port):
+    async def usbip_detach(self, vhci_port):
         if vhci_port in self.attached:
             del self.attached[vhci_port]
             self.detach_event[vhci_port].set()
@@ -405,3 +405,59 @@ async def test_reserve_twice_concurrently(agent_io):
     assert "is already reserved" in str(execinfo.value)
 
     assert len(await agent_io.agent_api.list()) == 1
+
+
+async def test_get_import_description(agent_io):
+    agent_io.places = [PLACE_1]
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    import_description_toml = await agent_io.agent_api.get_import_description("fake")
+    assert import_description_toml == IMPORT_DESC_1
+
+
+async def test_update_import_description(agent_io):
+    agent_io.places = [PLACE_1]
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    new_import_description = """
+        [parts.fake-board]
+        compatible = [ "fake-board" ]
+        usb.usb0 = { port_num = 7 }
+        tcp.ssh = { local_port = 2222 }
+    """
+    await agent_io.agent_api.update_import_description("fake", new_import_description)
+    await agent_io.agent_api.attach("fake")
+    usbid = PLACE_1.parts[0].usb["usb0"].usbid
+    assert agent_io.attached[7][2] == usbid
+
+
+async def test_update_import_description_attached(agent_io):
+    agent_io.places = [PLACE_1]
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
+    new_import_description = """
+        [parts.fake-board]
+        compatible = [ "fake-board" ]
+        usb.usb0 = { port_num = 7 }
+        tcp.ssh = { local_port = 2222 }
+    """
+    await agent_io.agent_api.update_import_description("fake", new_import_description)
+    usbid = PLACE_1.parts[0].usb["usb0"].usbid
+    assert agent_io.attached[7][2] == usbid
+
+
+async def test_update_import_description_not_matching(agent_io):
+    agent_io.places = [PLACE_1]
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    await agent_io.agent_api.attach("fake")
+    new_import_description = """
+        [parts.fake-board]
+        compatible = [ "does-not-match" ]
+        usb.usb0 = { port_num = 7 }
+        tcp.ssh = { local_port = 2222 }
+    """
+
+    with pytest.raises(RuntimeError) as execinfo:
+        await agent_io.agent_api.update_import_description(
+            "fake", new_import_description
+        )
+
+    assert "New import description doesn't match with place" in str(execinfo.value)
