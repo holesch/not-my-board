@@ -1,4 +1,4 @@
-# CLI Interface
+# Command Line Interface
 
 Here's a description of all the commands and options `not-my-board` supports.
 
