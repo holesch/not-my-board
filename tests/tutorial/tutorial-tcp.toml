@@ -1,0 +1,3 @@
+[parts.http-server]
+compatible = [ "tutorial-http-server" ]
+tcp.http = { local_port = 8081 }

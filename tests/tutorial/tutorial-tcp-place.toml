@@ -1,0 +1,5 @@
+port = 2192
+
+[[parts]]
+compatible = [ "tutorial-http-server" ]
+tcp.http = { host = "localhost", port = 8080 }
