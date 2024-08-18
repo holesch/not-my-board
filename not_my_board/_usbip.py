@@ -173,7 +173,7 @@ class UsbIpDevice(_UsbDevice, util.ContextStack):
         try:
             status_available = 1
             if self.usbip_status == status_available:
-                logger.debug("Device %s is available", self.busid)
+                logger.debug("Device %s is available", self._busid)
                 return True
         except FileNotFoundError:
             # device might have disappeared
@@ -181,7 +181,7 @@ class UsbIpDevice(_UsbDevice, util.ContextStack):
         except Exception as e:
             logger.warning("Error while checking device status: %s", e)
 
-        logger.debug("Device %s is not available, yet", self.busid)
+        logger.debug("Device %s is not available, yet", self._busid)
         return False
 
     async def _ensure_usbip_host_driver(self):

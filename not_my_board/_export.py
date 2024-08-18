@@ -98,7 +98,7 @@ class Exporter(util.ContextStack):
             task.add_done_callback(tasks.discard)
 
             target, trailing_data = await con.receive_target()
-            logger.info("Proxy CONNECT target: %s", target)
+            logger.info("Proxy CONNECT target: %s", target.decode())
 
             await self._tunnel(reader, writer, target, trailing_data)
         else:
