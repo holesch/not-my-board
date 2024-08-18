@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
     "asgineer",
     "async-timeout; python_version < '3.11'",
+    "colorlog",
     "h11",
     "pydantic ~= 1.10",
     "pyjwt[crypto]",

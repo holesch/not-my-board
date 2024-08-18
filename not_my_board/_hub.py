@@ -160,10 +160,7 @@ class Hub:
                 "error": logging.ERROR,
             }
             log_level = log_level_map[log_level_str]
-
-            logging.basicConfig(
-                format="%(levelname)s: %(name)s: %(message)s", level=log_level
-            )
+            util.configure_logging(log_level)
 
         auth_config = config.get("auth")
         if auth_config:

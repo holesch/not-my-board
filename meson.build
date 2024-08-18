@@ -23,6 +23,7 @@ py.install_sources(
 py.install_sources(
   'not_my_board/_util/__init__.py',
   'not_my_board/_util/_asyncio.py',
+  'not_my_board/_util/_logging.py',
   'not_my_board/_util/_matching.py',
   'not_my_board/_util/_parser.py',
   subdir: 'not_my_board/_util',

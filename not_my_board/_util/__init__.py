@@ -11,6 +11,7 @@ from ._asyncio import (
     run,
     run_concurrently,
 )
+from ._logging import configure_logging
 from ._matching import find_matching
 from ._parser import parse_time
 

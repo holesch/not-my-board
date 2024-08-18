@@ -23,6 +23,7 @@ except ModuleNotFoundError:
 
 
 TOKEN_STORE_PATH = "/var/lib/not-my-board/auth_tokens.json"  # noqa: S105
+logger = logging.getLogger(__name__)
 
 
 # ruff: noqa: PLR0915
@@ -144,18 +145,8 @@ def main():
             if not attr.startswith("_"):
                 setattr(Format, attr, "")
 
-    if args.verbose:
-        level = logging.DEBUG
-
-        # reduce level of verbose loggers
-        logging.getLogger("websockets.client").setLevel(logging.INFO)
-        logging.getLogger("asyncio").setLevel(logging.INFO)
-    else:
-        level = logging.WARNING
-
-    logging.basicConfig(
-        format="%(asctime)s %(levelname)s: %(name)s: %(message)s", level=level
-    )
+    level = logging.DEBUG if args.verbose else logging.WARNING
+    util.configure_logging(level)
 
     try:
         obj = args.func(args)
