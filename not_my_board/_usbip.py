@@ -46,19 +46,34 @@ class UsbIpServer(util.ContextStack):
         # allow client to trigger a refresh
         device.refresh()
 
-        async with device:
-            writer.transport.pause_reading()
-            fd = sock.fileno()
-            device.export(fd)
+        logger.info("Client requests device at %s", device.busid.decode())
+        watcher = util.background_task(self._watch_reader(reader))
+        try:
+            async with watcher as watcher_task, device:
+                await util.cancel_tasks([watcher_task])
+                writer.transport.pause_reading()
+                fd = sock.fileno()
+                device.export(fd)
 
-            reply = ImportReply.from_device(device)
-            logger.debug("Sending: %s", reply)
-            writer.write(bytes(reply))
-            await writer.drain()
+                reply = ImportReply.from_device(device)
+                logger.debug("Sending: %s", reply)
+                writer.write(bytes(reply))
+                await writer.drain()
 
-            writer.close()
-            await writer.wait_closed()
-            await device.available()
+                writer.close()
+                await writer.wait_closed()
+                await device.available()
+        except ConnectionClosedError:
+            logger.info(
+                "Client stopped waiting for device at %s", device.busid.decode()
+            )
+
+    @staticmethod
+    async def _watch_reader(reader):
+        data = await reader.read(1024)
+        if data:
+            raise ProtocolError("Unexpected data received")
+        raise ConnectionClosedError("Connection Closed")
 
 
 class _SysfsFileInt:
@@ -518,6 +533,10 @@ class ImportReply(Header):
 
 
 class ProtocolError(Exception):
+    pass
+
+
+class ConnectionClosedError(ProtocolError):
     pass
 
 
