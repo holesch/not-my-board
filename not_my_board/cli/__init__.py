@@ -6,6 +6,8 @@ import logging
 import pathlib
 import sys
 
+import tabulate
+
 import not_my_board._agent as agent
 import not_my_board._auth as auth
 import not_my_board._client as client
@@ -230,17 +232,24 @@ async def _list_command(args):
 async def _status_command(args):
     status_list = await client.status()
 
-    if not args.no_header and status_list:
-        columns = ["Place", "Part", "Type", "Interface", "Status"]
-        header = " ".join(f"{c:<16}" for c in columns).rstrip()
-        print(f"{Format.BOLD}{header}{Format.RESET}")
+    if status_list:
+        if args.no_header:
+            headers = []
+        else:
+            headers = ["Place", "Part", "Type", "Interface", "Status"]
+            headers[0] = f"{Format.BOLD}{headers[0]}"
+            headers[-1] = f"{headers[-1]}{Format.RESET}"
 
-    for entry in status_list:
-        keys = ["place", "part", "type", "interface"]
-        status = f"{Format.GREEN}Up" if entry["attached"] else f"{Format.RED}Down"
-        row = " ".join(f"{entry[k]:<16}" for k in keys)
-        row += f" {status}{Format.RESET}"
-        print(row)
+        def row(entry):
+            keys = ["place", "part", "type", "interface"]
+            row = [entry[k] for k in keys]
+            status = f"{Format.GREEN}Up" if entry["attached"] else f"{Format.RED}Down"
+            status += Format.RESET
+            row.append(status)
+            return row
+
+        table = [row(entry) for entry in status_list]
+        print(tabulate.tabulate(table, headers=headers, tablefmt="plain"))
 
 
 async def _uevent_command(args):
