@@ -46,6 +46,7 @@ Description=Board Farm Agent
 ExecStart=/usr/local/bin/not-my-board agent --fd 0 https://<my-hub-address>
 StandardInput=socket
 StandardOutput=journal
+SyslogIdentifier=not-my-board-agent
 ```
 
 If authentication is configured in the *Hub*, log in:

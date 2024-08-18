@@ -105,6 +105,7 @@ LoadCredential=certkey:/etc/not-my-board/not-my-board.key
 ExecStart=/opt/pipx/venvs/not-my-board/bin/uvicorn --fd 0 --ssl-keyfile ${CREDENTIALS_DIRECTORY}/certkey --ssl-certfile /etc/not-my-board/not-my-board.crt not_my_board:asgi_app
 StandardInput=socket
 StandardOutput=journal
+SyslogIdentifier=not-my-board-hub
 DynamicUser=yes
 ```
 

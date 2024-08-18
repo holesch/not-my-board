@@ -14,6 +14,7 @@ Description=Board Farm Exporter For Place %I
 ExecStart=/usr/local/bin/not-my-board export https://<my-hub-address> /etc/not-my-board/export-descriptions/%i.toml
 Restart=on-failure
 RestartSec=10s
+SyslogIdentifier=not-my-board-export
 
 [Install]
 WantedBy=multi-user.target
