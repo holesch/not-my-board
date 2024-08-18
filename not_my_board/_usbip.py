@@ -29,7 +29,7 @@ class UsbIpServer(util.ContextStack):
 
     async def _context_stack(self, stack):
         for _, device in self._devices.items():
-            stack.callback(device.restore_default_usb_driver)
+            stack.push_async_callback(device.restore_default_usb_driver)
             await stack.enter_async_context(util.background_task(_refresh_task(device)))
 
     async def handle_client(self, reader, writer):
@@ -143,12 +143,15 @@ class UsbIpDevice(_UsbDevice, util.ContextStack):
     async def _context_stack(self, stack):
         await stack.enter_async_context(self._lock)
         await self.available()
-        stack.callback(self.stop_export)
+        stack.push_async_callback(self.stop_export)
 
-    def stop_export(self):
+    async def stop_export(self):
         if self._is_exported:
             try:
-                (self._sysfs_path / "usbip_sockfd").write_text("-1\n")
+                # This can block for ~ 250 ms. Run it in a thread.
+                await util.run_in_thread(
+                    (self._sysfs_path / "usbip_sockfd").write_text, "-1\n"
+                )
             except (OSError, FileNotFoundError):
                 # client might have disconnected or device disappeared
                 pass
@@ -192,7 +195,10 @@ class UsbIpDevice(_UsbDevice, util.ContextStack):
                 logger.info(
                     'Unbinding USB device %s from driver "%s"', self._busid, driver_name
                 )
-                (driver_path / "unbind").write_text(self._busid)
+                # Unbinding can take more than 100 ms. Run in Thread.
+                await util.run_in_thread(
+                    (driver_path / "unbind").write_text, self._busid
+                )
                 await self._bind_usbip_host_driver()
         elif self._sysfs_path.exists():
             await self._bind_usbip_host_driver()
@@ -205,7 +211,7 @@ class UsbIpDevice(_UsbDevice, util.ContextStack):
         (usbip_host_driver / "match_busid").write_text(f"add {self._busid}")
         (usbip_host_driver / "bind").write_text(self._busid)
 
-    def restore_default_usb_driver(self):
+    async def restore_default_usb_driver(self):
         driver_path = self._sysfs_path / "driver"
         if driver_path.exists():
             driver_name = driver_path.resolve().name
@@ -213,7 +219,10 @@ class UsbIpDevice(_UsbDevice, util.ContextStack):
                 logger.info(
                     'Unbinding USB device %s from driver "%s"', self._busid, driver_name
                 )
-                (driver_path / "unbind").write_text(self._busid)
+                # Unbinding can take more than 100 ms. Run in Thread.
+                await util.run_in_thread(
+                    (driver_path / "unbind").write_text, self._busid
+                )
                 self._bind_default_usb_driver()
         elif self._sysfs_path.exists():
             self._bind_default_usb_driver()

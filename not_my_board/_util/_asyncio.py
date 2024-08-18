@@ -247,9 +247,13 @@ class ContextStack:
 async def flock(f):
     """File lock as a context manager"""
 
-    loop = asyncio.get_running_loop()
     try:
-        await loop.run_in_executor(None, fcntl.flock, f.fileno(), fcntl.LOCK_EX)
+        await run_in_thread(fcntl.flock, f.fileno(), fcntl.LOCK_EX)
         yield
     finally:
         fcntl.flock(f, fcntl.LOCK_UN)
+
+
+async def run_in_thread(func, *args):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, func, *args)

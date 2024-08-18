@@ -10,6 +10,7 @@ from ._asyncio import (
     relay_streams,
     run,
     run_concurrently,
+    run_in_thread,
 )
 from ._logging import configure_logging
 from ._matching import find_matching
