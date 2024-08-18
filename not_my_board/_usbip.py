@@ -20,7 +20,7 @@ else:
 
 
 logger = logging.getLogger(__name__)
-_vhci_status_attached = {}
+_vhci_status = {}
 
 
 class UsbIpServer(util.ContextStack):
@@ -85,13 +85,42 @@ class _SysfsFileHex(_SysfsFileInt):
         super().__init__(16, default)
 
 
-class UsbIpDevice(util.ContextStack):
+class _UsbDevice:
+    def __init__(self, sysfs_path):
+        self._sysfs_path = sysfs_path
+
+    @property
+    def speed(self):
+        string_to_code = {
+            "1.5": 1,
+            "12": 2,
+            "480": 3,
+            "53.3-480": 4,
+            "5000": 5,
+        }
+        string = (self._sysfs_path / "speed").read_text()[:-1]  # strip newline
+        return string_to_code.get(string, 0)
+
+    busnum = _SysfsFileInt()
+    devnum = _SysfsFileInt()
+    idVendor = _SysfsFileHex()  # noqa: N815
+    idProduct = _SysfsFileHex()  # noqa: N815
+    bcdDevice = _SysfsFileHex()  # noqa: N815
+    bDeviceClass = _SysfsFileHex()  # noqa: N815
+    bDeviceSubClass = _SysfsFileHex()  # noqa: N815
+    bDeviceProtocol = _SysfsFileHex()  # noqa: N815
+    bConfigurationValue = _SysfsFileHex(default=0)  # noqa: N815
+    bNumConfigurations = _SysfsFileHex()  # noqa: N815
+    bNumInterfaces = _SysfsFileHex(default=0)  # noqa: N815
+
+
+class UsbIpDevice(_UsbDevice, util.ContextStack):
     def __init__(self, busid):
         self._busid = busid
-        self._sysfs_path = pathlib.Path("/sys/bus/usb/devices/") / busid
         self._lock = asyncio.Lock()
         self._refresh_event = asyncio.Event()
         self._is_exported = False
+        super().__init__(pathlib.Path("/sys/bus/usb/devices/") / busid)
 
     def refresh(self):
         self._refresh_event.set()
@@ -187,30 +216,7 @@ class UsbIpDevice(util.ContextStack):
     def path(self):
         return self._sysfs_path.as_posix().encode("utf-8")
 
-    @property
-    def speed(self):
-        string_to_code = {
-            "1.5": 1,
-            "12": 2,
-            "480": 3,
-            "53.3-480": 4,
-            "5000": 5,
-        }
-        string = (self._sysfs_path / "speed").read_text()[:-1]  # strip newline
-        return string_to_code.get(string, 0)
-
     usbip_status = _SysfsFileInt()
-    busnum = _SysfsFileInt()
-    devnum = _SysfsFileInt()
-    idVendor = _SysfsFileHex()  # noqa: N815
-    idProduct = _SysfsFileHex()  # noqa: N815
-    bcdDevice = _SysfsFileHex()  # noqa: N815
-    bDeviceClass = _SysfsFileHex()  # noqa: N815
-    bDeviceSubClass = _SysfsFileHex()  # noqa: N815
-    bDeviceProtocol = _SysfsFileHex()  # noqa: N815
-    bConfigurationValue = _SysfsFileHex(default=0)  # noqa: N815
-    bNumConfigurations = _SysfsFileHex()  # noqa: N815
-    bNumInterfaces = _SysfsFileHex(default=0)  # noqa: N815
 
 
 async def _exec(*args, **kwargs):
@@ -256,7 +262,7 @@ async def attach(reader, writer, busid, port_num):
 def _port_num_to_vhci_port(port_num, speed):
     """Map port_num and speed to port, that is passed to Kernel
 
-    example with vhci_nr_hcs=2 and nports=8:
+    Example with vhci_nr_hcs=2 and nports=8:
 
         vhci_hcd    hub   speed  port_num  vhci_port
         vhci_hcd.0  usb1  hs     0         0
@@ -293,12 +299,52 @@ def _port_num_to_vhci_port(port_num, speed):
     return vhci_port
 
 
+def port_num_to_busid(port_num):
+    """Map port_num to busid
+
+    Example with vhci_nr_hcs=2 and nports=8:
+
+        vhci_hcd    hub   port_num  busid
+        vhci_hcd.0  usb5  0         5-1
+        vhci_hcd.0  usb5  1         5-2
+        vhci_hcd.0  usb6  0         6-1
+        vhci_hcd.0  usb6  1         6-2
+        vhci_hcd.1  usb7  2         7-1
+        vhci_hcd.1  usb7  3         7-2
+        vhci_hcd.1  usb8  2         8-1
+        vhci_hcd.1  usb8  3         8-2
+    """
+    platform_path = pathlib.Path("/sys/devices/platform")
+    vhci_nr_hcs = len(list(platform_path.glob("vhci_hcd.*")))
+    nports = int((platform_path / "vhci_hcd.0/nports").read_text())
+
+    # calculate number of ports each vhci_hcd.* has
+    vhci_ports = nports // vhci_nr_hcs
+    # calculate number of ports each hub has
+    vhci_hc_ports = vhci_ports // 2
+
+    vhci_hcd_nr = port_num // vhci_hc_ports
+
+    devnum = port_num - (vhci_hcd_nr * vhci_hc_ports) + 1
+
+    vhci_hcd = platform_path / f"vhci_hcd.{vhci_hcd_nr}"
+    for hub in vhci_hcd.glob("usb[0-9]*/"):
+        hub = _UsbDevice(hub)
+        yield f"{hub.busnum}-{devnum}"
+
+
 def detach(vhci_port):
     detach_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0/detach")
 
     # ignore error, if not attached anymore
     with contextlib.suppress(OSError):
         detach_path.write_text(f"{vhci_port}")
+
+
+@dataclasses.dataclass
+class _VhciStatus:
+    attached: bool
+    busid: str
 
 
 def refresh_vhci_status():
@@ -327,11 +373,16 @@ def refresh_vhci_status():
                 entries = line.split()
                 port = int(entries[1])
                 status = int(entries[2])
-                _vhci_status_attached[port] = status == status_attached
+                busid = entries[6]
+                _vhci_status[port] = _VhciStatus(status == status_attached, busid)
 
 
-def is_attached(port):
-    return _vhci_status_attached[port]
+def is_attached(vhci_port):
+    return _vhci_status[vhci_port].attached
+
+
+def vhci_port_to_busid(vhci_port):
+    return _vhci_status[vhci_port].busid
 
 
 async def _ensure_vhci_hcd_driver_available():

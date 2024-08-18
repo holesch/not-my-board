@@ -156,6 +156,14 @@ class FakeAgentIO:
     def usbip_is_attached(self, vhci_port):
         return vhci_port in self.attached
 
+    @staticmethod
+    def usbip_port_num_to_busid(_):
+        return ["2-1", "3-1"]
+
+    @staticmethod
+    def usbip_vhci_port_to_busid(_):
+        return "2-1"
+
     async def usbip_attach(self, proxy, target, port_num, usbid):
         if port_num in self.detach_event:
             await self.detach_event[port_num].wait()
@@ -246,6 +254,7 @@ async def test_status_place_1(agent_io):
         "interface": "usb0",
         "type": "USB",
         "attached": False,
+        "port": "2-1/3-1",
     }
     ssh_status = {
         "place": "fake",
@@ -253,6 +262,7 @@ async def test_status_place_1(agent_io):
         "interface": "ssh",
         "type": "TCP",
         "attached": False,
+        "port": "2222",
     }
     assert usb0_status in status
     assert ssh_status in status
@@ -266,6 +276,7 @@ async def test_status_place_1_attached(agent_io):
     assert len(status) == 2
     assert status[0]["attached"] is True
     assert status[1]["attached"] is True
+    assert "2-1" in [s["port"] for s in status]
 
 
 async def test_reserve_twice(agent_io):

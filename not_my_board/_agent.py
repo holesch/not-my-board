@@ -80,6 +80,14 @@ class AgentIO:
     def usbip_is_attached(vhci_port):
         return usbip.is_attached(vhci_port)
 
+    @staticmethod
+    def usbip_port_num_to_busid(port_num):
+        return usbip.port_num_to_busid(port_num)
+
+    @staticmethod
+    def usbip_vhci_port_to_busid(vhci_port):
+        return usbip.vhci_port_to_busid(vhci_port)
+
     async def usbip_attach(self, proxy, target, port_num, usbid):
         tunnel = self._http.open_tunnel(*proxy, *target)
         async with tunnel as (reader, writer, trailing_data):
@@ -267,6 +275,7 @@ class Agent(util.ContextStack):
                 "interface": tunnel.iface_name,
                 "type": tunnel.type_name,
                 "attached": tunnel.is_attached(),
+                "port": tunnel.port,
             }
             for name, reservation in self._reservations.items()
             for tunnel in reservation.tunnels.values()
@@ -487,12 +496,24 @@ class _UsbTunnel(_Tunnel):
             return False
         return self._io.usbip_is_attached(self._vhci_port)
 
+    @property
+    def port(self):
+        if self.is_attached():
+            return self._io.usbip_vhci_port_to_busid(self._vhci_port)
+        else:
+            usbids = self._io.usbip_port_num_to_busid(self.port_num)
+            return "/".join(usbids)
+
 
 class _TcpTunnel(_Tunnel):
     async def _task_func(self):
         await self._io.port_forward(
             self._ready_event, self._proxy, self.remote, self.local_port
         )
+
+    @property
+    def port(self):
+        return str(self.local_port)
 
 
 @dataclass(frozen=True)

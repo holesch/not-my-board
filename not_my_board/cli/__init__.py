@@ -236,16 +236,16 @@ async def _status_command(args):
         if args.no_header:
             headers = []
         else:
-            headers = ["Place", "Part", "Type", "Interface", "Status"]
+            headers = ["Place", "Part", "Type", "Interface", "Status", "Port"]
             headers[0] = f"{Format.BOLD}{headers[0]}"
             headers[-1] = f"{headers[-1]}{Format.RESET}"
 
         def row(entry):
-            keys = ["place", "part", "type", "interface"]
+            keys = ["place", "part", "type", "interface", "port"]
             row = [entry[k] for k in keys]
             status = f"{Format.GREEN}Up" if entry["attached"] else f"{Format.RED}Down"
             status += Format.RESET
-            row.append(status)
+            row.insert(-1, status)
             return row
 
         table = [row(entry) for entry in status_list]
