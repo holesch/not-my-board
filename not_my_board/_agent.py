@@ -98,10 +98,6 @@ class AgentIO:
     @staticmethod
     async def usbip_detach(vhci_port):
         usbip.detach(vhci_port)
-        # Unfortunately it takes ~ 0.5 seconds for the connection to close and
-        # for the remote device to be available again. Wait a bit, so an
-        # immediate attach after the detach succeeds.
-        await asyncio.sleep(2)
 
     async def port_forward(self, ready_event, proxy, target, local_port):
         connection_handler = functools.partial(
@@ -475,14 +471,13 @@ class _UsbTunnel(_Tunnel):
         await super().close()
         if self._vhci_port is not None:
             await self._io.usbip_detach(self._vhci_port)
+            self._vhci_port = None
 
     async def _task_func(self):
         retry_timeout = 1
         while True:
             try:
-                self._vhci_port = await self._io.usbip_attach(
-                    self._proxy, USBIP_REMOTE, self.port_num, self.usbid
-                )
+                await self._attach()
                 logger.debug("%s: USB device attached", self.name)
                 self._ready_event.set()
                 retry_timeout = 1
@@ -490,6 +485,26 @@ class _UsbTunnel(_Tunnel):
                 traceback.print_exc()
                 await asyncio.sleep(retry_timeout)
                 retry_timeout = min(2 * retry_timeout, 30)
+
+    async def _attach(self):
+        # Only retry attach, if the tunnel was closed. This fixes an issue,
+        # when devices are detached and immediately attached again: When the
+        # connection is closed, then it takes ~ 0.5 seconds until the remote
+        # makes the device available again.
+        # When the first attach succeeds, then we send another attach request
+        # which blocks until the device is available again. This blocking is
+        # expected, so the attach timeout doesn't make sense anymore.
+        attach_timeout = 1 if self._vhci_port is None else None
+
+        while True:
+            try:
+                async with util.timeout(attach_timeout):
+                    self._vhci_port = await self._io.usbip_attach(
+                        self._proxy, USBIP_REMOTE, self.port_num, self.usbid
+                    )
+                    break
+            except TimeoutError:
+                attach_timeout = min(2 * attach_timeout, 30)
 
     def is_attached(self):
         if self._vhci_port is None:
