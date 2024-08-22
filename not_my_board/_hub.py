@@ -100,6 +100,7 @@ async def _on_startup():
 
 @asgineer.to_asgi
 async def _handle_request(request):
+    util.generate_log_request_id()
     hub = request.scope["state"]["hub"]
     response = (404, {}, "Page not found")
 
