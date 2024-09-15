@@ -12,7 +12,7 @@ import os
 import pathlib
 import random
 from dataclasses import dataclass
-from typing import Dict, Union
+from typing import Dict, List, Optional, Union
 
 import asgineer
 
@@ -165,16 +165,25 @@ class Hub:
 
         auth_config = config.get("auth")
         if auth_config:
-            required_keys = {"issuer", "client_id"}
-            optional_keys = {"show_claims"}
-            keys = required_keys | (optional_keys & auth_config.keys())
-            self._auth_info = {k: auth_config[k] for k in keys}
-
             trusted_issuers = {auth_config["issuer"]}
             for permission in auth_config["permissions"]:
                 issuer = permission["claims"].get("iss")
                 if issuer:
                     trusted_issuers.add(issuer)
+
+            def make_issuer_config(issuer):
+                issuer_config = auth_config.get("issuers", {}).get(issuer, {})
+                return IssuerConfig(**issuer_config)
+
+            self._issuer_configs = {
+                issuer: make_issuer_config(issuer) for issuer in trusted_issuers
+            }
+
+            keys = {"issuer", "client_id"}
+            self._auth_info = {k: auth_config[k] for k in keys}
+            issuer_config = self._issuer_configs[auth_config["issuer"]]
+            if issuer_config.show_claims is not None:
+                self._auth_info["show_claims"] = issuer_config.show_claims
 
             def make_permission(d):
                 d["claims"].setdefault("iss", auth_config["issuer"])
@@ -189,6 +198,7 @@ class Hub:
             self._auth_info = {}
             self._permissions = []
             self._validator = None
+            self._issuer_configs = {}
 
         self._id_generator = itertools.count(start=1)
 
@@ -216,7 +226,10 @@ class Hub:
         id_ = next(self._id_generator)
         connection_id_var.set(id_)
         self._reservations[id_] = set()
-        authenticator = Authenticator(self._permissions, self._validator, channel)
+        authenticator = Authenticator(
+            self._permissions, self._validator, channel, self._issuer_configs
+        )
+
         authenticator_var.set(authenticator)
 
         try:
@@ -343,15 +356,17 @@ class Authenticator(util.ContextStack):
     _leeway = datetime.timedelta(seconds=30)
     _timeout = datetime.timedelta(seconds=30)
 
-    def __init__(self, permissions, validator, channel):
+    def __init__(self, permissions, validator, channel, issuer_configs):
         self._permissions = permissions
         self._validator = validator
         self._channel = channel
+        self._issuer_configs = issuer_configs
         self._required_roles = set()
         self._refresh_start_event = asyncio.Event()
         self._roles = None
         self._expires = None
         self._roles_lock = asyncio.Lock()
+        self._previous_claims = None
 
     async def _context_stack(self, stack):
         if self._validator:
@@ -385,6 +400,20 @@ class Authenticator(util.ContextStack):
             id_token, leeway=self._leeway.total_seconds()
         )
         roles = set()
+
+        if logger.isEnabledFor(logging.INFO):
+            show_claims = self._issuer_configs[token_claims["iss"]].show_claims
+            if show_claims is not None:
+                filtered_claims = [
+                    (c, token_claims[c]) for c in show_claims if c in token_claims
+                ]
+            else:
+                filtered_claims = list(token_claims.items())
+
+            if filtered_claims and filtered_claims != self._previous_claims:
+                claims_str = ", ".join([f"{k!r}: {v!r}" for k, v in filtered_claims])
+                logger.info("Token claims: %s", claims_str)
+                self._previous_claims = filtered_claims
 
         for permission in self._permissions:
             if permission.roles <= roles:
@@ -450,6 +479,11 @@ class Permission:
                 claims[key] = value
 
         return cls(claims, set(d["roles"]))
+
+
+@dataclass
+class IssuerConfig:
+    show_claims: Optional[List[str]] = None
 
 
 def _unmap_ip(ip_str):
