@@ -56,7 +56,9 @@ async def test_proxy_connect_https(tinyproxy):
             "-nodes "
             f"-keyout {root_key} "
             f"-out {root_cert} "
-            "-subj '/CN=not-my-board-root-ca'"
+            "-subj '/CN=not-my-board-root-ca' "
+            "-addext 'basicConstraints=critical,CA:TRUE' "
+            "-addext 'keyUsage=critical,keyCertSign'"
         )
         hostname = "hub.local"
         await sh(

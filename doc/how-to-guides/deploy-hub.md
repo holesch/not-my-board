@@ -11,7 +11,7 @@ don't, then continue.
 
 First generate the self signed root CA:
 ```console
-$ sudo openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -days 365000 -nodes -keyout /etc/not-my-board/not-my-board-root-ca.key -out /etc/not-my-board/not-my-board-root-ca.crt -subj "/CN=not-my-board-root-ca"
+$ sudo openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -days 365000 -nodes -keyout /etc/not-my-board/not-my-board-root-ca.key -out /etc/not-my-board/not-my-board-root-ca.crt -subj "/CN=not-my-board-root-ca" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign"
 ```
 
 Then generate the certificate for the *Hub*. Replace `example.com` with the
