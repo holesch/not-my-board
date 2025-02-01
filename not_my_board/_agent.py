@@ -220,7 +220,7 @@ class Agent(util.ContextStack):
         await util.run_concurrently(*coros)
         reservation.is_attached = False
 
-    async def _auto_return(self, name, timeout):  # noqa: ASYNC109
+    async def _auto_return(self, name, timeout):
         try:
             if timeout == 0:
                 # disable auto return, wait forever
