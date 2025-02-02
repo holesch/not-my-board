@@ -114,10 +114,17 @@ agreed upon by every participant of the board farm.
 **Type:** Number \
 **Required:** Yes
 
-Configures the virtual USB port, which is used to attach the exported remote USB
-device. The *Agent* selects the actual virtual USB hub and port based on
-`port_num` and the speed of the imported USB device. The default Kernel config
-limits the number of ports, so that `port_num` must be between `0` and `7`.
+Specifies the local virtual USB port number to which the remote USB device will
+be attached. With the default Kernel configuration, there are 8 ports available
+(values from `0` to `7`). Together with the speed of the imported device (High
+Speed (USB 2.0) or Super Speed (USB 3.0)) the appropriate USB port is selected.
+
+On a given host, the USB port will always be the same, if the device speed and
+`port_num` value are the same. With that guarantee, consistent device manager
+rules (e.g. udev rules) can be created.
+
+Only one device can be attached to one port. Choose unique `port_num` values for
+each import description.
 
 ## Example
 
