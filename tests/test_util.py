@@ -61,3 +61,27 @@ async def test_parse_empty_time_string():
     with pytest.raises(RuntimeError) as execinfo:
         util.parse_time("")
     assert "Time is an empty string" in str(execinfo.value)
+
+
+async def test_server_shutdown():
+    ready_event = asyncio.Event()
+
+    async def server():
+        async def handle_client(reader, writer):
+            data = await reader.read(1024)
+            writer.write(data)
+            await writer.drain()
+
+        async with util.Server(handle_client, host="localhost", port=12345) as server:
+            ready_event.set()
+            await server.serve_forever()
+
+    async with util.background_task(server()) as server:
+        # wait for server to come up
+        await ready_event.wait()
+
+        async with util.connect("localhost", 8888) as (reader, writer):
+            # While a connection is open, cancel the server task. This test
+            # checks, that closing the server also cancels every connection, so
+            # that the shutdown doesn't block forever.
+            await util.cancel_tasks([server])

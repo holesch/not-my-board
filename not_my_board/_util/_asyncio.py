@@ -185,9 +185,12 @@ class Server:
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
+        # close listening socket, don't accept new connections
         self._server.close()
-        await self._server.wait_closed()
+        # cancel active connection handlers
         await cancel_tasks(self._tasks.copy())
+        # wait for all connections to close
+        await self._server.wait_closed()
 
     def _on_connect(self, reader, writer):
         task = asyncio.create_task(self._run_handler(reader, writer))
@@ -208,7 +211,10 @@ class Server:
         return await asyncio.start_server(self._on_connect, *self._args, **self._kwargs)
 
     async def serve_forever(self):
-        await self._server.serve_forever()
+        # Since Python 3.12 self._server.serve_forever() hangs when canceled
+        # until all connections are closed. Just block on an event until
+        # canceled.
+        await asyncio.Event().wait()
 
 
 class UnixServer(Server):
