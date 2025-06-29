@@ -503,7 +503,7 @@ class _UsbTunnel(_Tunnel):
                         self._proxy, USBIP_REMOTE, self.port_num, self.usbid
                     )
                     break
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 attach_timeout = min(2 * attach_timeout, 30)
 
     def is_attached(self):
