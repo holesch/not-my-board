@@ -29,9 +29,9 @@ authenticator_var = contextvars.ContextVar("authenticator")
 
 
 def run_hub():
-    import socket
+    import socket  # noqa: PLC0415
 
-    import uvicorn
+    import uvicorn  # noqa: PLC0415
 
     with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)

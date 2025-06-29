@@ -577,7 +577,7 @@ async def _open_read_pipe(*args, **kwargs):
 
 
 async def _main():
-    import argparse
+    import argparse  # noqa: PLC0415
 
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(name)s: %(message)s", level=logging.DEBUG
