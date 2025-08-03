@@ -12,7 +12,6 @@ import os
 import pathlib
 import random
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
 
 import asgineer
 
@@ -466,7 +465,7 @@ class Authenticator(util.ContextStack):
 
 @dataclass
 class Permission:
-    claims: Dict[str, Union[dict, str, int, float, set, bool]]
+    claims: dict[str, dict | str | int | float | set | bool]
     roles: set
 
     @classmethod
@@ -483,7 +482,7 @@ class Permission:
 
 @dataclass
 class IssuerConfig:
-    show_claims: Optional[List[str]] = None
+    show_claims: list[str] | None = None
 
 
 def _unmap_ip(ip_str):

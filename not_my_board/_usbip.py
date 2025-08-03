@@ -9,15 +9,9 @@ import os
 import pathlib
 import socket
 import struct
-import sys
+from typing import Annotated
 
 import not_my_board._util as util
-
-if sys.version_info < (3, 9):
-    from typing_extensions import Annotated
-else:
-    from typing import Annotated
-
 
 logger = logging.getLogger(__name__)
 _vhci_status = {}
@@ -477,7 +471,7 @@ def serializable(cls):
         data = await reader.readexactly(cls._struct.size)
         values = cls._struct.unpack(data)
         init_values = []
-        for field, value in zip(dataclasses.fields(cls), values):
+        for field, value in zip(dataclasses.fields(cls), values, strict=True):
             if field.init:
                 if field.name in cls._to_strip:
                     value = value.rstrip(b"\0")

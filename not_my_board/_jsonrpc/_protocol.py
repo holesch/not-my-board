@@ -9,7 +9,7 @@ import json
 import logging
 import textwrap
 import traceback
-from typing import Any, Optional, Union
+from typing import Any
 
 import not_my_board._util as util
 
@@ -229,7 +229,7 @@ def _parse_message(raw_data, info):
     data = json.loads(raw_data)
     id_ = data.get("id")
     if id_ is not None:
-        if not isinstance(id_, (str, int)):
+        if not isinstance(id_, str | int):
             raise ProtocolError('"id" must be a string or number')
         info["id"] = id_
 
@@ -242,7 +242,7 @@ def _parse_message(raw_data, info):
             raise ProtocolError('"method" must be a string')
 
         params = data.get("params", [])
-        if not isinstance(params, (list, dict)):
+        if not isinstance(params, list | dict):
             raise ProtocolError('"params" must be a structured value')
 
         return Request(id_, method, params)
@@ -276,7 +276,7 @@ def _parse_message(raw_data, info):
 @dataclasses.dataclass
 class _Message:
     jsonrpc: str = dataclasses.field(default="2.0", init=False)
-    id: Optional[Union[int, str]]
+    id: int | str | None
 
     def __bytes__(self):
         body = {}
@@ -293,7 +293,7 @@ class _Message:
 @dataclasses.dataclass
 class Request(_Message):
     method: str
-    params: Union[list, dict]
+    params: list | dict
 
     @property
     def args(self):

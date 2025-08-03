@@ -20,12 +20,14 @@ def event_loop():
 async def vms():
     async with HubVM() as hub:
         await wait_for_ports(5001, 5002)
-        async with ExporterVM() as exporter:
-            async with ClientVM() as client:
-                await util.run_concurrently(
-                    hub.configure(),
-                    exporter.configure(),
-                    client.configure(),
-                )
-                await exporter.usb_attach()
-                yield VMs(hub, exporter, client)
+        async with (
+            ExporterVM() as exporter,
+            ClientVM() as client,
+        ):
+            await util.run_concurrently(
+                hub.configure(),
+                exporter.configure(),
+                client.configure(),
+            )
+            await exporter.usb_attach()
+            yield VMs(hub, exporter, client)

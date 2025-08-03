@@ -1,5 +1,3 @@
-from typing import Dict, List
-
 import pydantic
 
 UsbId = pydantic.constr(regex=r"^[1-9][0-9]*-[1-9][0-9]*(\.[1-9][0-9]*)*$")
@@ -14,15 +12,15 @@ class TcpImportDesc(pydantic.BaseModel):
 
 
 class ImportedPart(pydantic.BaseModel):
-    compatible: List[str]
-    usb: Dict[str, UsbImportDesc] = {}
-    tcp: Dict[str, TcpImportDesc] = {}
+    compatible: list[str]
+    usb: dict[str, UsbImportDesc] = {}
+    tcp: dict[str, TcpImportDesc] = {}
 
 
 class ImportDesc(pydantic.BaseModel):
     name: str
     auto_return_time: str = "10h"
-    parts: Dict[str, ImportedPart]
+    parts: dict[str, ImportedPart]
 
 
 class UsbExportDesc(pydantic.BaseModel):
@@ -35,14 +33,14 @@ class TcpExportDesc(pydantic.BaseModel):
 
 
 class ExportedPart(pydantic.BaseModel):
-    compatible: List[str]
-    usb: Dict[str, UsbExportDesc] = {}
-    tcp: Dict[str, TcpExportDesc] = {}
+    compatible: list[str]
+    usb: dict[str, UsbExportDesc] = {}
+    tcp: dict[str, TcpExportDesc] = {}
 
 
 class ExportDesc(pydantic.BaseModel):
     port: pydantic.PositiveInt
-    parts: List[ExportedPart]
+    parts: list[ExportedPart]
 
 
 class Place(ExportDesc):

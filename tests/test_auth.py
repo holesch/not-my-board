@@ -256,9 +256,11 @@ async def test_login_success(hub, http_client, token_store_path):
     fake_exporter = FakeExporter(rpc1, token_src, http_client)
     hub_coro = hub.communicate("3.1.1.1", rpc2)
     exporter_coro = fake_exporter.communicate_forever()
-    async with util.background_task(hub_coro):
-        async with util.background_task(exporter_coro):
-            await fake_exporter.register_place()
+    async with (
+        util.background_task(hub_coro),
+        util.background_task(exporter_coro),
+    ):
+        await fake_exporter.register_place()
 
 
 @pytest.mark.parametrize(
@@ -309,14 +311,16 @@ async def test_permissions(claims, is_allowed):
     fake_exporter = FakeExporter(rpc1, token_src, http_client_)
     hub_coro = hub_.communicate("3.1.1.1", rpc2)
     exporter_coro = fake_exporter.communicate_forever()
-    async with util.background_task(hub_coro):
-        async with util.background_task(exporter_coro):
-            try:
-                await fake_exporter.register_place()
-            except Exception:
-                assert not is_allowed
-            else:
-                assert is_allowed
+    async with (
+        util.background_task(hub_coro),
+        util.background_task(exporter_coro),
+    ):
+        try:
+            await fake_exporter.register_place()
+        except Exception:
+            assert not is_allowed
+        else:
+            assert is_allowed
 
 
 async def test_permission_lost(hub, http_client, token_store_path, fake_time):

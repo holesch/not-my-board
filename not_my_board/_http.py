@@ -12,7 +12,6 @@ import ssl
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
 
 import h11
 import websockets
@@ -116,7 +115,7 @@ class Client:
                     headers = event.headers
                 elif isinstance(event, h11.Data):
                     body += event.data
-                elif isinstance(event, (h11.EndOfMessage, h11.PAUSED)):
+                elif isinstance(event, h11.EndOfMessage | h11.PAUSED):
                     break
 
             return Response(status_code, headers, body)
@@ -283,9 +282,11 @@ class Client:
 
         protocol = websockets.ClientProtocol(ws_uri)
 
-        async with self._connect(url) as (reader, writer):
-            async with _WebsocketConnection(protocol, reader, writer) as con:
-                yield con
+        async with (
+            self._connect(url) as (reader, writer),
+            _WebsocketConnection(protocol, reader, writer) as con,
+        ):
+            yield con
 
 
 class _WebsocketConnection:
@@ -320,7 +321,7 @@ class _WebsocketConnection:
         if isinstance(data, str):
             async with self._send_context():
                 self._protocol.send_text(data.encode())
-        elif isinstance(data, (bytes, bytearray, memoryview)):
+        elif isinstance(data, bytes | bytearray | memoryview):
             async with self._send_context():
                 self._protocol.send_binary(data)
         else:
@@ -417,21 +418,21 @@ class _ParsedURL:
     path: str
     query: str
     fragment: str
-    username: Optional[str]
-    password: Optional[str]
-    ssl: Union[bool, ssl.SSLContext]
+    username: str | None
+    password: str | None
+    ssl: bool | ssl.SSLContext
 
 
 @dataclass
 class Response:
     status_code: int
-    headers: List[Tuple[str, str]]
+    headers: list[tuple[str, str]]
     body: str
 
 
 @dataclass
 class CacheEntry:
-    url: Optional[str] = None
+    url: str | None = None
     content: str = ""
     fresh_until: datetime.datetime = datetime.datetime.min
 

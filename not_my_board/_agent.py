@@ -11,8 +11,8 @@ import socket
 import traceback
 import urllib.parse
 import weakref
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Mapping, Optional, Tuple
 
 import not_my_board._jsonrpc as jsonrpc
 import not_my_board._models as models
@@ -21,7 +21,7 @@ import not_my_board._util as util
 
 logger = logging.getLogger(__name__)
 USBIP_REMOTE = ("usb.not-my-board.localhost", 3240)
-Address = Tuple[str, int]
+Address = tuple[str, int]
 
 
 class AgentIO:
@@ -565,7 +565,7 @@ class _Reservation:
     place: models.Place
     is_attached: bool = field(default=False, init=False)
     tunnels: Mapping[_TunnelDesc, _Tunnel]
-    auto_return_task: Optional[asyncio.Task]
+    auto_return_task: asyncio.Task | None
 
 
 class ProtocolError(Exception):

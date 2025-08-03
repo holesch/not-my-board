@@ -4,7 +4,7 @@
 name = "not-my-board"
 description = "Tool to setup, manage and use a board farm "
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {file = "LICENSE.txt"}
 authors = [
     {name = "Simon Holesch", email = "simon@holesch.de"},
@@ -17,8 +17,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -35,7 +33,6 @@ dependencies = [
     "pyjwt[crypto]",
     "tabulate",
     "tomli; python_version < '3.11'",
-    "typing_extensions; python_version < '3.9'",
     "uvicorn",
     "websockets",
 ]
@@ -151,11 +148,6 @@ ignore = [
     # "Use ternary operator instead of if-else-block"
     # -> can make the code less readable
     "SIM108",
-    # "Use a single with statement with multiple contexts instead of nested
-    #  with statements"
-    # -> only useful with Python version >= 3.10, when you can break the
-    #    statement into multiple lines
-    "SIM117",
 ]
 
 [tool.ruff.lint.per-file-ignores]

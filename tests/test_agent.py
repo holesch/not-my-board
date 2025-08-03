@@ -189,9 +189,11 @@ class FakeAgentIO:
 @pytest.fixture
 async def agent_io():
     io = FakeAgentIO()
-    async with agentmodule.Agent(HUB_URL, io, None) as agent:
-        async with util.background_task(agent.serve_forever()):
-            yield io
+    async with (
+        agentmodule.Agent(HUB_URL, io, None) as agent,
+        util.background_task(agent.serve_forever()),
+    ):
+        yield io
 
 
 async def test_idle_list(agent_io):
