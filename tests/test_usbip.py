@@ -72,14 +72,22 @@ async def test_usb_forwarding(vms):
             await vms.exporter.usb_attach()
 
         await vms.client.ssh_poll("test -e /sys/bus/usb/devices/2-1")
-        await vms.client.ssh("not-my-board detach -k qemu-usb")
+
+        # Test the edit command workflow: change port_num from 0 to 1
+        await vms.client.ssh(
+            "EDITOR=./src/tests/fake_editor.sh not-my-board edit qemu-usb"
+        )
+        await vms.client.ssh_poll("test -e /sys/bus/usb/devices/2-2")
         await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
+
+        await vms.client.ssh("not-my-board detach -k qemu-usb")
+        await vms.client.ssh("! test -e /sys/bus/usb/devices/2-2")
 
         result = await vms.client.ssh("not-my-board status")
         status_str = result.stdout.rstrip()
         status_lines = status_str.split("\n")
         status_line = status_lines[1].split()
-        assert status_line[5] == "1-1/2-1"
+        assert status_line[5] == "1-2/2-2"
 
     # When the exporter is killed, then it should clean up and restore the
     # default USB driver.

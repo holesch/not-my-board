@@ -68,21 +68,22 @@ async def edit(name):
         import_description_toml = await agent.get_import_description(name)
         new_content = None
 
+        temp_file = None
         try:
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".toml", delete_on_close=False
+                mode="w", suffix=".toml", delete=False
             ) as file:
+                temp_file = pathlib.Path(file.name)
                 file.write(import_description_toml)
-                file.close()
 
-                editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
-                proc = await asyncio.create_subprocess_exec(editor, file.name)
-                await proc.wait()
+            editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
+            proc = await asyncio.create_subprocess_exec(editor, str(temp_file))
+            await proc.wait()
 
-                new_content = pathlib.Path(file.name).read_text()
+            new_content = temp_file.read_text()
 
-                if proc.returncode:
-                    raise RuntimeError(f"{editor!r} exited with {proc.returncode}")
+            if proc.returncode:
+                raise RuntimeError(f"{editor!r} exited with {proc.returncode}")
 
             await agent.update_import_description(name, new_content)
         except Exception as e:
@@ -93,6 +94,9 @@ async def edit(name):
                 )
                 raise RuntimeError(message) from e
             raise
+        finally:
+            if temp_file is not None:
+                temp_file.unlink(missing_ok=True)
 
 
 async def uevent(devpath):
