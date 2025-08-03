@@ -17,8 +17,8 @@ _request_id = contextvars.ContextVar("request_id")
 
 def configure_logging(level):
     # reduce level of verbose loggers
-    logging.getLogger("websockets.client").setLevel(logging.INFO)
-    logging.getLogger("asyncio").setLevel(logging.INFO)
+    logging.getLogger("websockets.client").setLevel(max(level, logging.INFO))
+    logging.getLogger("asyncio").setLevel(max(level, logging.INFO))
 
     root = logging.getLogger()
     root.setLevel(level)
