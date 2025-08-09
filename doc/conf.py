@@ -3,6 +3,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import os
 import pathlib
 import subprocess
 
@@ -36,3 +37,8 @@ copybutton_exclude = ".linenos, .gp, .go"
 
 # add search console verification
 html_extra_path = ["googlef248cffc234a230d.html"]
+
+# Point search engines to the correct version, i.e. the default version
+# selected in Read the Docs.
+# https://docs.readthedocs.com/platform/stable/canonical-urls.html
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
