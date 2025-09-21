@@ -217,7 +217,8 @@ async def _list_command(args):
             if entry["attached"]
             else f"{Format.YELLOW}Reserved"
         )
-        print(f"{entry['place']:<16} {status}{Format.RESET}")
+        name = f"{entry['place']}@{entry['place_name']}"
+        print(f"{name:<32} {status}{Format.RESET}")
 
 
 async def _status_command(args):

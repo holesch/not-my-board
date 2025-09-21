@@ -11,6 +11,7 @@ HUB_URL = "http://fake.farm"
 PLACE_1 = models.Place(
     id=1289,
     host="3.1.1.1",
+    name="place1",
     port=2000,
     parts=[
         models.ExportedPart(
@@ -28,6 +29,7 @@ PLACE_1 = models.Place(
 PLACE_LOCALHOST = models.Place(
     id=338,
     host="127.0.0.1",
+    name="place-localhost",
     port=2000,
     parts=[
         models.ExportedPart(
@@ -45,6 +47,7 @@ PLACE_LOCALHOST = models.Place(
 PLACE_COMPLEX = models.Place(
     id=4311,
     host="3.1.1.1",
+    name="place-complex",
     port=2001,
     parts=[
         models.ExportedPart(
@@ -234,7 +237,7 @@ async def test_list_place_1(agent_io):
     agent_io.places = [PLACE_1]
     await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     list_ = await agent_io.agent_api.list()
-    assert list_ == [{"place": "fake", "attached": False}]
+    assert list_ == [{"place": "fake", "place_name": "place1", "attached": False}]
 
 
 async def test_list_place_1_attached(agent_io):
@@ -242,7 +245,7 @@ async def test_list_place_1_attached(agent_io):
     await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     await agent_io.agent_api.attach("fake")
     list_ = await agent_io.agent_api.list()
-    assert list_ == [{"place": "fake", "attached": True}]
+    assert list_ == [{"place": "fake", "place_name": "place1", "attached": True}]
 
 
 async def test_status_place_1(agent_io):

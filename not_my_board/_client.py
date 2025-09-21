@@ -13,11 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 async def reserve(import_description, with_name=None):
+    import_description, place_name = _parse_name(import_description)
     result = _find_import_description(import_description, with_name)
     reservation_name, import_description_toml = result
 
     async with agent_channel() as agent:
-        await agent.reserve(reservation_name, import_description_toml)
+        await agent.reserve(reservation_name, import_description_toml, place_name)
 
 
 async def return_reservation(name):
@@ -36,9 +37,10 @@ async def attach(name, keep_others=False):
                 for other in others:
                     await agent.return_reservation(name=other, force=True)
         else:
+            name, place_name = _parse_name(name)
             result = _find_import_description(name)
             reservation_name, import_description_toml = result
-            await agent.reserve(reservation_name, import_description_toml)
+            await agent.reserve(reservation_name, import_description_toml, place_name)
             await agent.attach(reservation_name)
 
             if not keep_others and reserved_names:
@@ -113,6 +115,12 @@ async def uevent(devpath):
         logger.info("Loading default driver: %s", devname)
         probe_path = pathlib.Path("/sys/bus/usb/drivers_probe")
         probe_path.write_text(devname)
+
+
+def _parse_name(name):
+    if "@" in name:
+        return name.split("@", 1)
+    return name, None
 
 
 def _find_import_description(name, with_name=None):

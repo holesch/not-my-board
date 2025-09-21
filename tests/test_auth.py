@@ -222,6 +222,7 @@ class FakeExporter:
     async def register_place(self):
         place = {
             "port": 1234,
+            "name": "fake-place",
             "parts": [],
         }
         await self._rpc.register_place(place)

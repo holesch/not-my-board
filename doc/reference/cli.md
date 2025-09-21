@@ -17,13 +17,13 @@ Here's a description of all the commands and options `not-my-board` supports.
 **`login`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`--cacert`** *cacert*\] *hub_url*
 : Login user.
 
-**`reserve`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--with-name`** *name*\] *import_description*
+**`reserve`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--with-name`** *name*\] *import_description*\[*@place_name*\]
 : Reserve a *Place*.
 
 **`return`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *name*
 : Return a reserved *Place*.
 
-**`attach`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-k`**|**`--keep-others`**\] *name*|*import_description*
+**`attach`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-k`**|**`--keep-others`**\] *name*|*import_description*\[*@place_name*\]
 : Attach a reserved *Place*. As a convenience this will also implicitly reserve
   the *Place*, if it's not reserved, yet.
 
@@ -84,7 +84,9 @@ HTTP or HTTPS URL of the *Hub*.
 ```
 
 ```{option} export_description
-Path to an export description file.
+Path to an export description file. The name of the file is used as the
+*@place_name*. The *@place_name* must be unique for all places registered with
+one *Hub*.
 ```
 
 ```{option} import_description
@@ -93,6 +95,11 @@ is given, then the file is searched for in `./.not-my-board/<name>.toml` of the
 current working directory and every parent up to either `$HOME` or `/`. If it's
 not found, then it falls back to `$XDG_CONFIG_HOME/not-my-board/<name>.toml` or
 `~/.config/not-my-board/<name>.toml` if `$XDG_CONFIG_HOME` is not set.
+```
+
+```{option} @place_name
+Specify one specific place registered with the *Hub*. A place name is always
+prefixed with an `@` character.
 ```
 
 ```{option} -v, --verbose

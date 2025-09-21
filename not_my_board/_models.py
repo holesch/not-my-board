@@ -39,6 +39,7 @@ class ExportedPart(pydantic.BaseModel):
 
 
 class ExportDesc(pydantic.BaseModel):
+    name: str
     port: pydantic.PositiveInt
     parts: list[ExportedPart]
 

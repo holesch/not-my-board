@@ -149,7 +149,7 @@ class Agent(util.ContextStack):
         ]
         await util.run_concurrently(*coros)
 
-    async def reserve(self, name, import_description_toml):
+    async def reserve(self, name, import_description_toml, place_name=None):
         parsed = util.toml_loads(import_description_toml)
         import_description = models.ImportDesc(name=name, **parsed)
         auto_return_time = util.parse_time(import_description.auto_return_time)
@@ -159,6 +159,10 @@ class Agent(util.ContextStack):
                 raise RuntimeError(f'A place named "{name}" is already reserved')
 
             places = await self._io.get_places()
+
+            if place_name:
+                # reduce the list of places to one element with the matching name
+                places = [p for p in places if p.name == place_name]
 
             tunnel_descs_by_id = _filter_places(import_description, places)
             if not tunnel_descs_by_id:
@@ -257,7 +261,11 @@ class Agent(util.ContextStack):
 
     async def list(self):
         return [
-            {"place": name, "attached": reservation.is_attached}
+            {
+                "place": name,
+                "place_name": reservation.place.name,
+                "attached": reservation.is_attached,
+            }
             for name, reservation in self._reservations.items()
         ]
 

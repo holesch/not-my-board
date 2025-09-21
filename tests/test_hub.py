@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import uuid
 
 import pytest
 
@@ -34,6 +35,7 @@ class FakeExporter:
     async def register_place(self):
         place = {
             "port": 1234,
+            "name": str(uuid.uuid4()),
             "parts": [
                 {
                     "compatible": [

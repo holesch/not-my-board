@@ -142,6 +142,7 @@ def require_role(role):
 class Hub:
     def __init__(self, config=None, http_client=None):
         self._places = {}
+        self._place_names = set()
         self._exporters = {}
         self._available = set()
         self._wait_queue = []
@@ -237,6 +238,7 @@ class Hub:
         finally:
             if id_ in self._places:
                 logger.info("Place disappeared: %d", id_)
+                self._place_names.discard(self._places[id_].name)
                 del self._places[id_]
                 del self._exporters[id_]
                 self._available.discard(id_)
@@ -263,7 +265,11 @@ class Hub:
         if id_ in self._places:
             raise RuntimeError("Place already registered")
 
+        if place.name in self._place_names:
+            raise RuntimeError(f'Place with name "{place.name}" already registered')
+
         self._places[id_] = place
+        self._place_names.add(place.name)
         self._exporters[id_] = jsonrpc.get_current_channel()
         self._available.add(id_)
         logger.info("New place registered: %d", id_)
