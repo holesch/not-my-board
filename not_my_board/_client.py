@@ -112,6 +112,13 @@ async def search(import_description_name=None):
         return await agent.search(import_description_toml)
 
 
+async def get_place(name):
+    async with agent_channel() as agent:
+        if name[0] == "@":
+            return await agent.get_place_by_name(name[1:])
+        return await agent.get_reserved_place(name)
+
+
 async def uevent(devpath):
     # devpath has a leading "/", so joining with the / operator doesn't
     # work

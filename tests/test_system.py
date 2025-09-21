@@ -1,8 +1,12 @@
+import json
+
 import pytest
 
 
 @pytest.fixture(scope="module")
-async def farm(vms):
+async def partial_farm(vms):
+    """Keep hub and exporters running for the whole module"""
+
     async with (
         vms.hub.ssh_task("not-my-board hub", "hub", wait_ready=True),
         vms.exporter.ssh_task(
@@ -20,11 +24,20 @@ async def farm(vms):
             "export3",
             wait_ready=True,
         ),
-        vms.client.ssh_task_root(
+    ):
+        yield vms
+
+
+@pytest.fixture
+async def farm(partial_farm):
+    """Complete board farm with a newly started agent for every test case"""
+
+    async with (
+        partial_farm.client.ssh_task_root(
             "not-my-board agent http://hub.local:2092", "agent", wait_ready=True
         ),
     ):
-        yield vms
+        yield partial_farm
 
 
 async def test_reserve_by_name(farm):
@@ -61,3 +74,24 @@ async def test_search(farm):
     assert "@place1" in place_names
     assert "@place2" in place_names
     assert "@place3" not in place_names
+
+
+async def test_show_by_name(farm):
+    result = await farm.client.ssh("not-my-board show @place1")
+    lines = result.stdout.split("\n")
+    assert 'name="place1"' in lines
+    assert 'parts[0].compatible[0]="nothing"' in lines
+
+
+async def test_show_json(farm):
+    result = await farm.client.ssh("not-my-board show --json @place1")
+    place = json.loads(result.stdout)
+    assert place["name"] == "place1"
+    assert place["parts"][0]["compatible"][0] == "nothing"
+
+
+async def test_show_reserved(farm):
+    await farm.client.ssh("not-my-board reserve ./src/tests/system_test/nothing.toml")
+    result = await farm.client.ssh("not-my-board show nothing")
+    lines = result.stdout.split("\n")
+    assert 'parts[0].compatible[0]="nothing"' in lines

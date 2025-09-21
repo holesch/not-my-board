@@ -366,6 +366,21 @@ class Agent(util.ContextStack):
             if place.id in matching_place_ids
         ]
 
+    async def get_place_by_name(self, place_name):
+        places = await self._io.get_places()
+
+        for place in places:
+            if place.name == place_name:
+                break
+        else:
+            raise RuntimeError(f'Place with name "{place_name}" doesn\'t exist')
+
+        return place.dict()
+
+    async def get_reserved_place(self, name):
+        async with self._reservation(name) as reservation:
+            return reservation.place.dict()
+
 
 def _filter_places(import_description, places):
     candidates = {}

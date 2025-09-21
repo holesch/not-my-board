@@ -26,6 +26,7 @@ py.install_sources(
   'not_my_board/_util/_logging.py',
   'not_my_board/_util/_matching.py',
   'not_my_board/_util/_parser.py',
+  'not_my_board/_util/_flat_format.py',
   subdir: 'not_my_board/_util',
 )
 

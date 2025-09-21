@@ -124,6 +124,13 @@ def main():
         help="name or full path of an import description",
     )
 
+    subparser = add_subcommand("show", help="show place")
+    add_verbose_arg(subparser)
+    subparser.add_argument(
+        "-j", "--json", action="store_true", help="format output as JSON"
+    )
+    subparser.add_argument("name", help="name of a reserved place or a place name")
+
     subparser = add_subcommand(
         "status", help="show status of attached places and its interfaces"
     )
@@ -293,6 +300,15 @@ async def _search_command(args):
     result = await client.search(args.import_description)
     for entry in result:
         print(f"@{entry['name']}")
+
+
+async def _show_command(args):
+    place = await client.get_place(args.name)
+    if args.json:
+        print(json.dumps(place, indent=2))
+    else:
+        for line in util.to_flat_format(place):
+            print(line)
 
 
 class Format:

@@ -12,6 +12,7 @@ from ._asyncio import (
     run_concurrently,
     run_in_thread,
 )
+from ._flat_format import to_flat_format
 from ._logging import configure_logging, generate_log_request_id
 from ._matching import find_matching
 from ._parser import parse_time

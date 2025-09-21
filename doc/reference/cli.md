@@ -38,6 +38,9 @@ Here's a description of all the commands and options `not-my-board` supports.
 : List the *@place_name* of all places matching *import_description*. If no
   *import_description* is given, then list all places.
 
+**`show`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-j`**|**`--json`**\] *name*|*@place_name*
+: Print all attributes of an exported *Place*.
+
 **`status`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : Show status of attached places and its interfaces.
 
@@ -128,6 +131,10 @@ Don't return reservation.
 
 ```{option} -n, --no-header
 Hide table header.
+```
+
+```{option} -j, --json
+Use JSON as output format.
 ```
 
 ```{option} devpath
