@@ -116,6 +116,14 @@ def main():
         "-n", "--no-header", action="store_true", help="Hide table header"
     )
 
+    subparser = add_subcommand("search", help="list available boards")
+    add_verbose_arg(subparser)
+    subparser.add_argument(
+        "import_description",
+        nargs="?",
+        help="name or full path of an import description",
+    )
+
     subparser = add_subcommand(
         "status", help="show status of attached places and its interfaces"
     )
@@ -279,6 +287,12 @@ async def _login_command(args):
 
 async def _edit_command(args):
     await client.edit(args.name)
+
+
+async def _search_command(args):
+    result = await client.search(args.import_description)
+    for entry in result:
+        print(f"@{entry['name']}")
 
 
 class Format:

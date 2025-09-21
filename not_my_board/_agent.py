@@ -348,6 +348,24 @@ class Agent(util.ContextStack):
             reservation.import_description_toml = import_description_toml
             reservation.tunnels = new_tunnels
 
+    async def search(self, import_description_toml=None):
+        places = await self._io.get_places()
+
+        if import_description_toml is None:
+            return [place.dict() for place in places]
+
+        parsed = util.toml_loads(import_description_toml)
+        import_description = models.ImportDesc(name="search", **parsed)
+
+        matching_place_ids = _filter_places(import_description, places)
+        return [
+            {
+                "name": place.name,
+            }
+            for place in places
+            if place.id in matching_place_ids
+        ]
+
 
 def _filter_places(import_description, places):
     candidates = {}

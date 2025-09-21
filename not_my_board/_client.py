@@ -101,6 +101,17 @@ async def edit(name):
                 temp_file.unlink(missing_ok=True)
 
 
+async def search(import_description_name=None):
+    if import_description_name:
+        result = _find_import_description(import_description_name)
+        _, import_description_toml = result
+    else:
+        import_description_toml = None
+
+    async with agent_channel() as agent:
+        return await agent.search(import_description_toml)
+
+
 async def uevent(devpath):
     # devpath has a leading "/", so joining with the / operator doesn't
     # work

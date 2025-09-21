@@ -34,6 +34,10 @@ Here's a description of all the commands and options `not-my-board` supports.
 **`list`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : List reserved *Places*.
 
+**`search`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[*import_description*\]
+: List the *@place_name* of all places matching *import_description*. If no
+  *import_description* is given, then list all places.
+
 **`status`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : Show status of attached places and its interfaces.
 
