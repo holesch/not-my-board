@@ -80,7 +80,7 @@ async def test_server_shutdown():
         # wait for server to come up
         await ready_event.wait()
 
-        async with util.connect("localhost", 8888) as (reader, writer):
+        async with util.connect("localhost", 8888):
             # While a connection is open, cancel the server task. This test
             # checks, that closing the server also cancels every connection, so
             # that the shutdown doesn't block forever.
