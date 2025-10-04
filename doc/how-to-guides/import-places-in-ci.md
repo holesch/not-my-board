@@ -3,17 +3,13 @@
 This guide shows you how to use `not-my-board` in Continuous Integration (CI) to
 attach *Places* from the board farm.
 
-## USB/IP Kernel Modules
+## Install USB Device Drivers
 
-Most Kernels targeting VMs aren't configured with USB/IP enabled. You can
-however still compile and install the necessary modules.
+Most images targeting VMs don't include USB device drivers. On Ubuntu based
+images you can add the missing Kernel modules with:
 
-For example in an Azure VM, as used in GitHub Actions, run:
 ```{code-block} console
-$ git clone https://github.com/holesch/usbip-backports.git
-$ cd usbip-backports
-$ make CONFIG_USBIP_CORE=m CONFIG_USBIP_VHCI_HCD=m
-$ sudo make install
+# apt install "linux-modules-extra-$(uname -r)"
 ```
 
 ## Authentication
