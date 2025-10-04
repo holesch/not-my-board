@@ -13,8 +13,6 @@ known as a *board farm*.
   kind, you can share it between multiple developers without carrying it around.
 - **centralize maintenance of hardware setups:** You can make a person or team
   responsible for maintaining all boards in the farm.
-- **remote access from anywhere:** Since you already access the boards remotely
-  when in the office, you can access them the same way when working from home.
 - **make room on your desk:** There's a limit of how many boards you can fit on
   your desk. With a board farm you have access to all the boards without giving
   up any space on your desk.
