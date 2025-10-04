@@ -10,3 +10,7 @@
 body[data-theme="dark"] .sidebar-logo {
   filter: invert(1);
 }
+
+.sidebar-sticky {
+    height: 100dvh;
+}
