@@ -42,3 +42,10 @@ html_extra_path = ["googlef248cffc234a230d.html"]
 # selected in Read the Docs.
 # https://docs.readthedocs.com/platform/stable/canonical-urls.html
 html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
+
+html_logo = "not-my-board-logo.svg"
+
+html_static_path = ["_static"]
+html_css_files = [
+    "css/custom.css",
+]

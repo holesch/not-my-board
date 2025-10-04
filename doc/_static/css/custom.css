@@ -1,0 +1,12 @@
+.sidebar-logo {
+    max-width: 60%;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] .sidebar-logo {
+    filter: invert(1);
+  }
+}
+body[data-theme="dark"] .sidebar-logo {
+  filter: invert(1);
+}
