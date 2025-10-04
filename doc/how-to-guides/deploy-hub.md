@@ -36,7 +36,7 @@ this root CA.
 
 Authentication and authorization is optional, but recommended for a permanent
 deployment. `not-my-board` uses OpenID Connect for authentication. If you don't
-already have an OpenID provider, you can use either self-host an open source
+already have an OpenID provider, you can either self-host an open source
 implementation like Keycloak or use services like Google Identity or Microsoft
 Entra ID.
 
@@ -53,6 +53,8 @@ when using Keycloak:
 issuer = "http://keycloak.example.com/realms/master"
 # The Client ID is configured in Keycloak
 client_id = "not-my-board"
+
+[auth.issuers."http://keycloak.example.com/realms/master"]
 # Don't show all claims when logging in
 show_claims = ["sub", "preferred_username"]
 ```
