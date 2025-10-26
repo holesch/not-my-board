@@ -260,7 +260,9 @@ class Hub:
     async def register_place(self, export_desc):
         id_ = connection_id_var.get()
         client_ip = client_ip_var.get()
-        place = models.Place(id=id_, host=_unmap_ip(client_ip), **export_desc)
+        place = models.Place.init_recursive(
+            id=id_, host=_unmap_ip(client_ip), **export_desc
+        )
 
         if id_ in self._places:
             raise RuntimeError("Place already registered")

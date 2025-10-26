@@ -22,7 +22,7 @@ class Exporter(util.ContextStack):
         self._hub_url = hub_url
         self._ip_to_tasks_map = {}
         export_desc_content = export_desc_path.read_text()
-        self._place = models.ExportDesc(
+        self._place = models.ExportDesc.init_recursive(
             name=export_desc_path.stem, **util.toml_loads(export_desc_content)
         )
         self._http = http_client

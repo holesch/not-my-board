@@ -70,7 +70,7 @@ class AgentIO:
 
     async def get_places(self):
         response = await self._http.get_json(f"{self._hub_url}/api/v1/places")
-        return [models.Place(**p) for p in response["places"]]
+        return [models.Place.init_recursive(**p) for p in response["places"]]
 
     @staticmethod
     def usbip_refresh_status():
@@ -151,7 +151,7 @@ class Agent(util.ContextStack):
 
     async def reserve(self, name, import_description_toml, place_name=None):
         parsed = util.toml_loads(import_description_toml)
-        import_description = models.ImportDesc(name=name, **parsed)
+        import_description = models.ImportDesc.init_recursive(name=name, **parsed)
         auto_return_time = util.parse_time(import_description.auto_return_time)
 
         async with self._name_lock(name):
@@ -292,7 +292,7 @@ class Agent(util.ContextStack):
     async def update_import_description(self, name, import_description_toml):
         async with self._reservation(name) as reservation:
             parsed = util.toml_loads(import_description_toml)
-            import_description = models.ImportDesc(name=name, **parsed)
+            import_description = models.ImportDesc.init_recursive(name=name, **parsed)
             auto_return_time = util.parse_time(import_description.auto_return_time)
 
             imported_part_sets = [
@@ -355,7 +355,7 @@ class Agent(util.ContextStack):
             return [place.dict() for place in places]
 
         parsed = util.toml_loads(import_description_toml)
-        import_description = models.ImportDesc(name="search", **parsed)
+        import_description = models.ImportDesc.init_recursive(name="search", **parsed)
 
         matching_place_ids = _filter_places(import_description, places)
         return [
