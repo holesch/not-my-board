@@ -100,6 +100,15 @@ IMPORT_DESC_COMPLEX_NOT_FOUND = """
     compatible = [ "fake-board" ]
 """
 
+IMPORT_DESC_DUPLICATED = """
+    [parts.fake-board-1]
+    compatible = [ "fake-board" ]
+    tcp.ssh = { local_port = 2222 }
+    [parts.fake-board-2]
+    compatible = [ "fake-board" ]
+    tcp.ssh = { local_port = 2223 }
+"""
+
 
 class FakeHub:
     def __init__(self):
@@ -386,6 +395,19 @@ async def test_complex_match_not_found(agent_io):
     agent_io.places = [PLACE_COMPLEX]
     with pytest.raises(RuntimeError) as execinfo:
         await agent_io.agent_api.reserve("fake", IMPORT_DESC_COMPLEX_NOT_FOUND)
+    assert "No matching place found" in str(execinfo.value)
+
+
+async def test_duplicate_match(agent_io):
+    agent_io.places = [PLACE_COMPLEX]
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_DUPLICATED)
+    assert await agent_io.agent_api.list()
+
+
+async def test_duplicate_match_not_found(agent_io):
+    agent_io.places = [PLACE_1]
+    with pytest.raises(RuntimeError) as execinfo:
+        await agent_io.agent_api.reserve("fake", IMPORT_DESC_DUPLICATED)
     assert "No matching place found" in str(execinfo.value)
 
 

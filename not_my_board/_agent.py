@@ -442,19 +442,10 @@ def _find_matching(imported_part_sets, place):
         if not match_graph[name]:
             return None
 
-    matching = []
-    for name, matches in match_graph.items():
-        if len(matches) != 1:
-            # Complex matching
-            matching_dict = util.find_matching(match_graph)
-            if len(match_graph) == len(matching_dict):
-                return matching_dict.items()
-            else:
-                return None
-
-        matching.append((name, matches[0]))
-
-    return matching
+    matching_dict = util.find_matching(match_graph)
+    if len(match_graph) == len(matching_dict):
+        return matching_dict.items()
+    return None
 
 
 def _part_to_set(part):
