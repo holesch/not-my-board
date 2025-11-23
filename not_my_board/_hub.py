@@ -237,8 +237,9 @@ class Hub:
                 yield
         finally:
             if id_ in self._places:
-                logger.info("Place disappeared: %d", id_)
-                self._place_names.discard(self._places[id_].name)
+                name = self._places[id_].name
+                logger.info("Place @%s disappeared", name)
+                self._place_names.discard(name)
                 del self._places[id_]
                 del self._exporters[id_]
                 self._available.discard(id_)
@@ -274,7 +275,7 @@ class Hub:
         self._place_names.add(place.name)
         self._exporters[id_] = jsonrpc.get_current_channel()
         self._available.add(id_)
-        logger.info("New place registered: %d", id_)
+        logger.info("New place registered: @%s", place.name)
         return id_
 
     @require_role("importer")
@@ -291,7 +292,7 @@ class Hub:
 
             self._available.remove(reserved_id)
             self._reservations[id_].add(reserved_id)
-            logger.info("Place %d reserved by %d", reserved_id, id_)
+            logger.info("Place @%s reserved by %d", self._places[reserved_id].name, id_)
         else:
             logger.debug(
                 "No places available, adding request to queue: %s",
@@ -317,24 +318,25 @@ class Hub:
         id_ = connection_id_var.get()
         self._reservations[id_].remove(place_id)
         if place_id in self._places:
+            name = self._places[place_id].name
             for candidates, agent_id, future in self._wait_queue:
                 if place_id in candidates and not future.done():
                     self._reservations[agent_id].add(place_id)
                     logger.info(
-                        "Place %d returned by %d was reserved by %d",
-                        place_id,
+                        "Place @%s returned by %d. Now reserved by %d",
+                        name,
                         id_,
                         agent_id,
                     )
                     future.set_result(place_id)
                     break
             else:
-                logger.info("Place %d returned by %d", place_id, id_)
+                logger.info("Place @%s returned by %d", name, id_)
                 self._available.add(place_id)
                 rpc = self._exporters[place_id]
                 await rpc.set_allowed_ips([])
         else:
-            logger.info("Place %d returned, but it doesn't exist", place_id)
+            logger.debug("Place %d returned, but it doesn't exist", place_id)
 
     async def get_authentication_response(self, state):
         future = asyncio.get_running_loop().create_future()
