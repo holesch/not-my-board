@@ -381,6 +381,21 @@ class Agent(util.ContextStack):
         async with self._reservation(name) as reservation:
             return reservation.place.dict()
 
+    async def get_reservations(self):
+        places, result = await util.run_concurrently(
+            self._io.get_places(), self._hub.get_reservations()
+        )
+        place_map = {p.id: p for p in places}
+
+        return [
+            {
+                "place_name": place_map[r["place_id"]].name,
+                "user": r["user"],
+            }
+            for r in result["reservations"]
+            if r["place_id"] in place_map
+        ]
+
 
 def _filter_places(import_description, places):
     candidates = {}

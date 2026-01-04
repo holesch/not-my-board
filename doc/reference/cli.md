@@ -52,6 +52,9 @@ Here's a description of all the commands and options `not-my-board` supports.
   If none is set, then `vi` is used. This doesn't modify the actual import
   description used to attach the place.
 
+**`who`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
+: List which user reserved which *Place*.
+
 **`uevent`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *devpath*
 : Handle Kernel uevent for USB devices. This should be called by the device
   manager, e.g. *udev*(7).

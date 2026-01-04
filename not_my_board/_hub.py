@@ -12,6 +12,7 @@ import os
 import pathlib
 import random
 from dataclasses import dataclass
+import string
 
 import asgineer
 
@@ -147,6 +148,7 @@ class Hub:
         self._available = set()
         self._wait_queue = []
         self._reservations = {}
+        self._authenticators = {}
         self._pending_callbacks = {}
 
         if config is None:
@@ -231,6 +233,7 @@ class Hub:
         )
 
         authenticator_var.set(authenticator)
+        self._authenticators[id_] = authenticator
 
         try:
             async with authenticator:
@@ -253,6 +256,7 @@ class Hub:
             coros = [self.return_reservation(id_) for id_ in self._reservations[id_]]
             results = await asyncio.gather(*coros, return_exceptions=True)
             del self._reservations[id_]
+            del self._authenticators[id_]
             for result in results:
                 if isinstance(result, Exception):
                     logger.warning("Error while deregistering agent: %s", result)
@@ -338,6 +342,21 @@ class Hub:
         else:
             logger.debug("Place %d returned, but it doesn't exist", place_id)
 
+    @require_role("importer")
+    async def get_reservations(self):
+        def reservations():
+            for agent_id, place_ids in self._reservations.items():
+                for place_id in place_ids:
+                    yield {
+                        "place_id": place_id,
+                        "user": self._format_user_name(agent_id),
+                    }
+
+        return {"reservations": list(reservations())}
+
+    def _format_user_name(self, agent_id):
+        return self._authenticators[agent_id].get_user_name() or f"<{agent_id}>"
+
     async def get_authentication_response(self, state):
         future = asyncio.get_running_loop().create_future()
         self._pending_callbacks[state] = future
@@ -372,9 +391,8 @@ class Authenticator(util.ContextStack):
         self._issuer_configs = issuer_configs
         self._required_roles = set()
         self._refresh_start_event = asyncio.Event()
-        self._roles = None
-        self._expires = None
-        self._roles_lock = asyncio.Lock()
+        self._token = None
+        self._token_lock = asyncio.Lock()
         self._previous_claims = None
 
     async def _context_stack(self, stack):
@@ -387,29 +405,39 @@ class Authenticator(util.ContextStack):
             # authentication is disabled
             return
 
-        def check(roles):
-            if role not in roles:
+        def check(token):
+            if role not in token.roles:
                 raise RuntimeError(f'Permission denied: requires role "{role}"')
 
-        async with self._roles_lock:
-            if self._roles is None:
-                roles, expires = await self._request_roles()
-                check(roles)
-                self._roles = roles
-                self._expires = expires
+        async with self._token_lock:
+            if self._token is None:
+                token = await self._request_token()
+                check(token)
+                self._token = token
                 self._refresh_start_event.set()
             else:
-                check(self._roles)
+                check(self._token)
 
             self._required_roles.add(role)
 
-    async def _request_roles(self):
+    async def _request_token(self):
         id_token = await self._channel.get_id_token()
         token_claims = await self._validator.extract_claims(
             id_token, leeway=self._leeway.total_seconds()
         )
-        roles = set()
+        self._log_claims_once(token_claims)
 
+        expires = datetime.datetime.fromtimestamp(
+            int(token_claims["exp"]), tz=datetime.timezone.utc
+        )
+
+        return TokenInfo(
+            claims=token_claims,
+            roles=self._derive_roles(token_claims),
+            expires=expires,
+        )
+
+    def _log_claims_once(self, token_claims):
         if logger.isEnabledFor(logging.INFO):
             show_claims = self._issuer_configs[token_claims["iss"]].show_claims
             if show_claims is not None:
@@ -424,6 +452,8 @@ class Authenticator(util.ContextStack):
                 logger.info("Token claims: %s", claims_str)
                 self._previous_claims = filtered_claims
 
+    def _derive_roles(self, token_claims):
+        roles = set()
         for permission in self._permissions:
             if permission.roles <= roles:
                 # permission rule has no new roles, skip
@@ -443,10 +473,7 @@ class Authenticator(util.ContextStack):
                 # Token has all needed claims. Add roles.
                 roles.update(permission.roles)
 
-        expires = datetime.datetime.fromtimestamp(
-            int(token_claims["exp"]), tz=datetime.timezone.utc
-        )
-        return roles, expires
+        return roles
 
     async def _refresh_token(self):
         await self._refresh_start_event.wait()
@@ -455,22 +482,26 @@ class Authenticator(util.ContextStack):
         # connection.
         while True:
             now = datetime.datetime.now(tz=datetime.timezone.utc)
-            delay = (self._expires - now) + self._leeway
+            delay = (self._token.expires - now) + self._leeway
             logger.debug(
                 "Token expires at %s, refreshing in %d seconds",
-                str(self._expires),
+                str(self._token.expires),
                 delay.total_seconds(),
             )
             await asyncio.sleep(delay.total_seconds())
 
             async with util.timeout(self._timeout.total_seconds()):
-                roles, expires = await self._request_roles()
+                self._token = await self._request_token()
 
-            self._roles = roles
-            self._expires = expires
-
-            if self._required_roles > self._roles:
+            if self._required_roles > self._token.roles:
                 raise RuntimeError("Permission lost")
+
+    def get_user_name(self):
+        if self._token is None:
+            return None
+
+        template = string.Template("${sub}@${iss}")
+        return template.substitute(self._token.claims)
 
 
 @dataclass
@@ -493,6 +524,13 @@ class Permission:
 @dataclass
 class IssuerConfig:
     show_claims: list[str] | None = None
+
+
+@dataclass
+class TokenInfo:
+    claims: dict[str, dict | str | int | float | list | bool]
+    roles: set[str]
+    expires: datetime.datetime
 
 
 def _unmap_ip(ip_str):

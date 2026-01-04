@@ -152,6 +152,12 @@ def main():
     add_verbose_arg(subparser)
     subparser.add_argument("name", help="name of the place to edit")
 
+    subparser = add_subcommand("who", help="show who has currently reserved a place")
+    add_verbose_arg(subparser)
+    subparser.add_argument(
+        "-n", "--no-header", action="store_true", help="Hide table header"
+    )
+
     args = parser.parse_args()
 
     # Don't use escape sequences, if stdout is not a tty
@@ -309,6 +315,20 @@ async def _show_command(args):
     else:
         for line in util.to_flat_format(place):
             print(line)
+
+
+async def _who_command(args):
+    reservations = await client.get_reservations()
+    if reservations:
+        if args.no_header:
+            headers = []
+        else:
+            headers = ["Place", "User"]
+            headers[0] = f"{Format.BOLD}{headers[0]}"
+            headers[-1] = f"{headers[-1]}{Format.RESET}"
+
+        table = [[f'@{r["place_name"]}', r["user"]] for r in reservations]
+        print(tabulate.tabulate(table, headers=headers, tablefmt="plain"))
 
 
 class Format:

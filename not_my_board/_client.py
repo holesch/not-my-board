@@ -119,6 +119,11 @@ async def get_place(name):
         return await agent.get_reserved_place(name)
 
 
+async def get_reservations():
+    async with agent_channel() as agent:
+        return await agent.get_reservations()
+
+
 async def uevent(devpath):
     # devpath has a leading "/", so joining with the / operator doesn't
     # work
