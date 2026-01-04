@@ -296,7 +296,11 @@ class Hub:
 
             self._available.remove(reserved_id)
             self._reservations[id_].add(reserved_id)
-            logger.info("Place @%s reserved by %d", self._places[reserved_id].name, id_)
+
+            user_name = self._format_user_name()
+            logger.info(
+                "Place @%s reserved by %s", self._places[reserved_id].name, user_name
+            )
         else:
             logger.debug(
                 "No places available, adding request to queue: %s",
@@ -323,19 +327,23 @@ class Hub:
         self._reservations[id_].remove(place_id)
         if place_id in self._places:
             name = self._places[place_id].name
+            returned_by = self._format_user_name()
+
             for candidates, agent_id, future in self._wait_queue:
                 if place_id in candidates and not future.done():
                     self._reservations[agent_id].add(place_id)
+
+                    reserved_by = self._format_user_name(agent_id)
                     logger.info(
-                        "Place @%s returned by %d. Now reserved by %d",
+                        "Place @%s returned by %s. Now reserved by %s",
                         name,
-                        id_,
-                        agent_id,
+                        returned_by,
+                        reserved_by,
                     )
                     future.set_result(place_id)
                     break
             else:
-                logger.info("Place @%s returned by %d", name, id_)
+                logger.info("Place @%s returned by %s", name, returned_by)
                 self._available.add(place_id)
                 rpc = self._exporters[place_id]
                 await rpc.set_allowed_ips([])
@@ -354,7 +362,10 @@ class Hub:
 
         return {"reservations": list(reservations())}
 
-    def _format_user_name(self, agent_id):
+    def _format_user_name(self, agent_id=None):
+        if agent_id is None:
+            agent_id = connection_id_var.get()
+
         return self._authenticators[agent_id].get_user_name() or f"<{agent_id}>"
 
     async def get_authentication_response(self, state):
