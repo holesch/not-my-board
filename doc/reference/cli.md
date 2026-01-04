@@ -53,7 +53,10 @@ Here's a description of all the commands and options `not-my-board` supports.
   description used to attach the place.
 
 **`who`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
-: List which user reserved which *Place*.
+: List which user reserved which *Place*. The user name format can be configured
+  with the
+  [`user_name_formats`](./hub-configuration.md#authissuersissuer_urluser_name_formats)
+  option in the *Hub* configuration.
 
 **`uevent`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *devpath*
 : Handle Kernel uevent for USB devices. This should be called by the device

@@ -62,6 +62,21 @@ when they log in. Specify the claims an administrator might need to give the
 user permissions. If the option is not set, then all claims are shown. If it's
 set to an empty array, then no claims are shown.
 
+### `auth.issuers.<issuer_url>.user_name_formats`
+
+**Type:** Array of strings \
+**Required:** No
+
+List of format strings used to construct a user name from the claims in the ID
+token. The first format string that can be fully satisfied with the claims in
+the ID token is used. If none of the format strings can be satisfied or if this
+option is not set, then the user name falls back to the format `${sub}@${iss}`.
+
+The format strings can contain any claim name wrapped in `${}`. For example,
+`${preferred_username}` or `${email}`. The curly braces are optional, if no
+alphanumeric character (including underscores) is right after the placeholder. A
+`$` can be escaped with `$$`.
+
 ### `auth.permissions`
 
 **Type:** Array of tables \
@@ -119,6 +134,7 @@ client_id = "not-my-board"
 
 [auth.issuers."http://keycloak.example.com/realms/master"]
 show_claims = ["sub", "preferred_username"]
+user_name_formats = ["${preferred_username}"]
 
 [[auth.permissions]]
 claims.sub = "11111111-2222-3333-4444-000000000000"
@@ -140,9 +156,11 @@ client_id = "11111111-2222-1111-2222-000000000000"
 
 [auth.issuers."https://login.microsoftonline.com/common/v2.0"]
 show_claims = ["preferred_username", "oid", "iss"]
+user_name_formats = ["${preferred_username}"]
 
 [auth.issuers."https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"]
 show_claims = ["preferred_username", "oid", "iss"]
+user_name_formats = ["${preferred_username}"]
 
 [[auth.permissions]]
 claims.oid = "11111111-2222-1111-2222-333333333333"

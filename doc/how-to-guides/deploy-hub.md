@@ -57,6 +57,8 @@ client_id = "not-my-board"
 [auth.issuers."http://keycloak.example.com/realms/master"]
 # Don't show all claims when logging in
 show_claims = ["sub", "preferred_username"]
+# Use the preferred_username claim as the user name
+user_name_formats = ["${preferred_username}"]
 ```
 
 Then add permissions for users. You can get the claims from users after they log

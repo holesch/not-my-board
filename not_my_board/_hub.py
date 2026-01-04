@@ -11,8 +11,8 @@ import logging
 import os
 import pathlib
 import random
-from dataclasses import dataclass
 import string
+from dataclasses import dataclass, field
 
 import asgineer
 
@@ -175,7 +175,7 @@ class Hub:
 
             def make_issuer_config(issuer):
                 issuer_config = auth_config.get("issuers", {}).get(issuer, {})
-                return IssuerConfig(**issuer_config)
+                return IssuerConfig.from_dict(issuer_config)
 
             self._issuer_configs = {
                 issuer: make_issuer_config(issuer) for issuer in trusted_issuers
@@ -511,6 +511,15 @@ class Authenticator(util.ContextStack):
         if self._token is None:
             return None
 
+        issuer = self._token.claims["iss"]
+        templates = self._issuer_configs[issuer].user_name_formats
+
+        for template in templates:
+            with contextlib.suppress(Exception):
+                return template.substitute(self._token.claims)
+
+        # fall back to formatting the name from claims, that are guaranteed to
+        # be present
         template = string.Template("${sub}@${iss}")
         return template.substitute(self._token.claims)
 
@@ -535,6 +544,16 @@ class Permission:
 @dataclass
 class IssuerConfig:
     show_claims: list[str] | None = None
+    user_name_formats: list[string.Template] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d):
+        show_claims = d.get("show_claims")
+
+        user_name_formats = d.get("user_name_formats", [])
+        user_name_formats = [string.Template(s) for s in user_name_formats]
+
+        return cls(show_claims, user_name_formats)
 
 
 @dataclass
