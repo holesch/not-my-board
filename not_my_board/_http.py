@@ -8,6 +8,7 @@ import email.utils
 import ipaddress
 import json
 import logging
+import socket
 import ssl
 import urllib.parse
 import urllib.request
@@ -301,9 +302,18 @@ class _WebsocketConnection:
         self._send_lock = asyncio.Lock()
 
     async def __aenter__(self):
-        request = self._protocol.connect()
+        # Enable keep alive. Assume the server sends websocket pings every 20
+        # seconds, so configure the client to send keepalive probes after 30
+        # seconds of inactivity, then every 10 seconds. After 3 failed probes,
+        # the connection is considered dead.
+        sock = self._writer.get_extra_info("socket")
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
         # sending handshake request
+        request = self._protocol.connect()
         self._protocol.send_request(request)
         await self._send_protocol_data()
 
