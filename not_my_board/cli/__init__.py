@@ -228,41 +228,34 @@ async def _detach_command(args):
 
 async def _list_command(args):
     place_list = await client.list_()
+    headers = ["Place", "Status"]
 
-    if not args.no_header and place_list:
-        print(f"{Format.BOLD}{'Place':<16} Status{Format.RESET}")
-
-    for entry in place_list:
+    def row(entry):
+        name = f"{entry['place']}@{entry['place_name']}"
         status = (
             f"{Format.GREEN}Attached"
             if entry["attached"]
             else f"{Format.YELLOW}Reserved"
         )
-        name = f"{entry['place']}@{entry['place_name']}"
-        print(f"{name:<32} {status}{Format.RESET}")
+        status += Format.RESET
+        return [name, status]
+
+    _print_table(args, headers, place_list, row)
 
 
 async def _status_command(args):
     status_list = await client.status()
+    headers = ["Place", "Part", "Type", "Interface", "Status", "Port"]
 
-    if status_list:
-        if args.no_header:
-            headers = []
-        else:
-            headers = ["Place", "Part", "Type", "Interface", "Status", "Port"]
-            headers[0] = f"{Format.BOLD}{headers[0]}"
-            headers[-1] = f"{headers[-1]}{Format.RESET}"
+    def row(entry):
+        keys = ["place", "part", "type", "interface", "port"]
+        row = [entry[k] for k in keys]
+        status = f"{Format.GREEN}Up" if entry["attached"] else f"{Format.RED}Down"
+        status += Format.RESET
+        row.insert(-1, status)
+        return row
 
-        def row(entry):
-            keys = ["place", "part", "type", "interface", "port"]
-            row = [entry[k] for k in keys]
-            status = f"{Format.GREEN}Up" if entry["attached"] else f"{Format.RED}Down"
-            status += Format.RESET
-            row.insert(-1, status)
-            return row
-
-        table = [row(entry) for entry in status_list]
-        print(tabulate.tabulate(table, headers=headers, tablefmt="plain"))
+    _print_table(args, headers, status_list, row)
 
 
 async def _uevent_command(args):
@@ -324,16 +317,24 @@ async def _show_command(args):
 
 async def _who_command(args):
     reservations = await client.get_reservations()
-    if reservations:
+    headers = ["Place", "User"]
+
+    def row(r):
+        return [f'@{r["place_name"]}', r["user"]]
+
+    _print_table(args, headers, reservations, row)
+
+
+def _print_table(args, headers, entries, row_func):
+    if entries:
         if args.no_header:
             headers = []
         else:
-            headers = ["Place", "User"]
             headers[0] = f"{Format.BOLD}{headers[0]}"
             headers[-1] = f"{headers[-1]}{Format.RESET}"
 
-        table = [[f'@{r["place_name"]}', r["user"]] for r in reservations]
-        print(tabulate.tabulate(table, headers=headers, tablefmt="plain"))
+        rows = [row_func(entry) for entry in entries]
+        print(tabulate.tabulate(rows, headers=headers, tablefmt="plain"))
 
 
 class Format:
