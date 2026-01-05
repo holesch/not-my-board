@@ -196,6 +196,14 @@ def hub(http_client):
                     "roles": ["exporter", "importer"],
                 }
             ],
+            "issuers": {
+                ISSUER_URL: {
+                    "user_name_formats": [
+                        "${preferred_username} <${email}>",
+                        "${preferred_username}",
+                    ],
+                },
+            },
         },
     }
     return hubmodule.Hub(config, http_client)
@@ -209,7 +217,7 @@ def token_store_path():
     path.unlink(missing_ok=True)
 
 
-class FakeExporter:
+class FakeClient:
     def __init__(self, rpc, token_src, http):
         rpc.set_api_object(self)
         self._rpc = rpc
@@ -219,6 +227,11 @@ class FakeExporter:
     async def communicate_forever(self):
         await self._rpc.communicate_forever()
 
+    async def get_id_token(self):
+        return await self._token_src.get_id_token()
+
+
+class FakeExporter(FakeClient):
     async def register_place(self):
         place = {
             "port": 1234,
@@ -227,8 +240,18 @@ class FakeExporter:
         }
         await self._rpc.register_place(place)
 
-    async def get_id_token(self):
-        return await self._token_src.get_id_token()
+    async def set_allowed_ips(self, _):
+        pass
+
+
+class FakeAgent(FakeClient):
+    async def reserve_place(self):
+        # Just reserve any place by guessing a correct ID
+        candidate_ids = list(range(1, 10))
+        await self._rpc.reserve(candidate_ids)
+
+    async def get_reservations(self):
+        return await self._rpc.get_reservations()
 
 
 class FakeTokenSource:
@@ -355,6 +378,54 @@ async def test_permission_lost(hub, http_client, token_store_path, fake_time):
                 await real_sleep(1)
 
     assert "Permission lost" in str(execinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("claims", "user_name"),
+    [
+        (
+            {"preferred_username": "Test User", "email": "testuser@example.com"},
+            "Test User <testuser@example.com>",
+        ),
+        ({"preferred_username": "Test User"}, "Test User"),
+        ({}, f"{USER_NAME}@{ISSUER_URL}"),
+        ({"email": "testuser@example.com"}, f"{USER_NAME}@{ISSUER_URL}"),
+    ],
+)
+async def test_user_name_format(hub, http_client, claims, user_name):
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    full_claims = claims.copy()
+    full_claims.setdefault("iss", ISSUER_URL)
+    full_claims.setdefault("sub", USER_NAME)
+    full_claims.setdefault("aud", CLIENT_ID)
+    full_claims.setdefault("exp", now + datetime.timedelta(seconds=30))
+    full_claims.setdefault("iat", now)
+
+    tokens = http_client.issue_tokens(full_claims)
+    token_src = FakeTokenSource(tokens["id"])
+
+    rpc1, rpc2 = fake_rpc_pair()
+    fake_exporter = FakeExporter(rpc1, token_src, http_client)
+    hub_exporter_coro = hub.communicate("3.1.1.1", rpc2)
+    exporter_coro = fake_exporter.communicate_forever()
+
+    rpc3, rpc4 = fake_rpc_pair()
+    fake_agent = FakeAgent(rpc3, token_src, http_client)
+    hub_agent_coro = hub.communicate("4.1.1.1", rpc4)
+    agent_coro = fake_agent.communicate_forever()
+
+    async with (
+        util.background_task(hub_exporter_coro),
+        util.background_task(exporter_coro),
+        util.background_task(hub_agent_coro),
+        util.background_task(agent_coro),
+    ):
+        await fake_exporter.register_place()
+        await fake_agent.reserve_place()
+
+        reservations = (await fake_agent.get_reservations())["reservations"]
+        assert len(reservations) == 1
+        assert reservations[0]["user"] == user_name
 
 
 @pytest.fixture

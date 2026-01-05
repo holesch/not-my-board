@@ -95,3 +95,20 @@ async def test_show_reserved(farm):
     result = await farm.client.ssh("not-my-board show nothing")
     lines = result.stdout.split("\n")
     assert 'parts[0].compatible[0]="nothing"' in lines
+
+
+async def test_who_command(farm):
+    await farm.client.ssh(
+        "not-my-board reserve ./src/tests/system_test/nothing.toml@place1"
+    )
+    result = await farm.client.ssh("not-my-board who")
+    lines = result.stdout.split("\n")
+    assert len(lines) == 2
+    header = lines[0].split()
+    who_line = lines[1].split()
+    assert header == ["Place", "User"]
+    assert who_line[0] == "@place1"
+
+    # there is no authentication, so the user is the user ID in angle brackets
+    assert who_line[1][0] == "<"
+    assert who_line[1][-1] == ">"
