@@ -1,6 +1,3 @@
-import json
-
-
 def to_flat_format(d, parent_key=""):
     if isinstance(d, dict):
         for k, v in d.items():
@@ -10,5 +7,4 @@ def to_flat_format(d, parent_key=""):
         for i, v in enumerate(d):
             yield from to_flat_format(v, f"{parent_key}[{i}]")
     else:
-        v = json.dumps(d)
-        yield f"{parent_key}={v}"
+        yield parent_key, d

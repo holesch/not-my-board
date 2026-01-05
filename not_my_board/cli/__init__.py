@@ -313,8 +313,13 @@ async def _show_command(args):
     if args.json:
         print(json.dumps(place, indent=2))
     else:
-        for line in util.to_flat_format(place):
-            print(line)
+        for key, value in util.to_flat_format(place):
+            value_fmt = Format.GREEN if isinstance(value, str) else Format.MAGENTA
+            value_str = json.dumps(value)
+            print(
+                f"{Format.BOLD}{key}{Format.RESET}"
+                f"={value_fmt}{value_str}{Format.RESET}"
+            )
 
 
 async def _who_command(args):
@@ -337,3 +342,5 @@ class Format:
     RED = "\033[31m"
     GREEN = "\033[32m"
     YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
