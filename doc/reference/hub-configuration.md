@@ -13,6 +13,30 @@ You can override this location with the environment variable
 
 Configures the log level. Can be one of `debug`, `info`, `warning` or `error`.
 
+### `uniqueness_tolerance`
+
+**Type:** Number \
+**Required:** No \
+**Default:** `0.01`
+
+Controls how the *Hub* selects which place to reserve when multiple candidates
+are available. The *Hub* tracks a uniqueness score for each place based on how
+often it's requested with few alternatives (unique) versus many alternatives
+(common).
+
+When reserving a place, the *Hub* prefers to allocate common places first to
+keep unique places available for requests that specifically need them. This
+setting defines the tolerance threshold: places with uniqueness scores within
+this threshold of the minimum are considered equally common and one is randomly
+selected.
+
+A higher value increases the pool of candidates considered "equally common",
+adding more randomness to the selection. A value of 0 always selects the single
+most common place, which may lead to uneven wear. A value of 1 effectively
+disables the uniqueness feature by treating all places as equally common,
+resulting in random selection. The default of `0.01` provides a good balance
+between preferring common places and distributing load.
+
 ### `auth`
 
 **Type:** Table \

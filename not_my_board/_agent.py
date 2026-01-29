@@ -375,11 +375,23 @@ class Agent(util.ContextStack):
         else:
             raise RuntimeError(f'Place with name "{place_name}" doesn\'t exist')
 
-        return place.dict()
+        place_stats = await self._hub.get_place_stats(place.id)
+
+        return {
+            **place.dict(),
+            "stats": place_stats,
+        }
 
     async def get_reserved_place(self, name):
         async with self._reservation(name) as reservation:
-            return reservation.place.dict()
+            place_dict = reservation.place.dict()
+
+        place_stats = await self._hub.get_place_stats(place_dict["id"])
+
+        return {
+            **place_dict,
+            "stats": place_stats,
+        }
 
     async def get_reservations(self):
         places, result = await util.run_concurrently(

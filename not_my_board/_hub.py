@@ -144,6 +144,7 @@ class Hub:
     def __init__(self, config=None, http_client=None):
         self._places = {}
         self._place_names = set()
+        self._place_stats = {}
         self._exporters = {}
         self._available = set()
         self._wait_queue = []
@@ -164,6 +165,8 @@ class Hub:
             }
             log_level = log_level_map[log_level_str]
             util.configure_logging(log_level)
+
+        self._uniqueness_tolerance = config.get("uniqueness_tolerance", 0.01)
 
         auth_config = config.get("auth")
         if auth_config:
@@ -243,6 +246,7 @@ class Hub:
                 name = self._places[id_].name
                 logger.info("Place @%s disappeared", name)
                 self._place_names.discard(name)
+                del self._place_stats[id_]
                 del self._places[id_]
                 del self._exporters[id_]
                 self._available.discard(id_)
@@ -276,6 +280,7 @@ class Hub:
             raise RuntimeError(f'Place with name "{place.name}" already registered')
 
         self._places[id_] = place
+        self._place_stats[id_] = PlaceStats()
         self._place_names.add(place.name)
         self._exporters[id_] = jsonrpc.get_current_channel()
         self._available.add(id_)
@@ -289,10 +294,33 @@ class Hub:
         if not existing_candidates:
             raise RuntimeError("None of the candidates exist anymore")
 
+        # update uniqueness: If a place is requested with many alternative
+        # candidates we assume it is a common place. If only a few or no
+        # alternative candidates are requested, then we assume it is a unique
+        # place. This uniqueness score is only used if more than one candidate
+        # is still available. Then we reserve the most common available place
+        # to keep the unique places free as long as possible.
+        uniqueness = 1 - (len(existing_candidates) / len(self._places))
+        for c_id in existing_candidates:
+            self._place_stats[c_id].uniqueness.update(uniqueness)
+
         available_candidates = existing_candidates & self._available
         if available_candidates:
-            # TODO do something smart to get the best candidate
-            reserved_id = random.choice(list(available_candidates))  # noqa: S311
+            # Select the most common places, not just the single most common
+            # one, to avoid that small uniqueness differences lead to always
+            # reserving the same place. Configured by uniqueness_tolerance.
+            min_uniqueness = min(
+                float(self._place_stats[c_id].uniqueness)
+                for c_id in available_candidates
+            )
+            common_candidates = [
+                c_id
+                for c_id in available_candidates
+                if float(self._place_stats[c_id].uniqueness) - min_uniqueness
+                <= self._uniqueness_tolerance
+            ]
+
+            reserved_id = random.choice(common_candidates)  # noqa: S311
 
             self._available.remove(reserved_id)
             self._reservations[id_].add(reserved_id)
@@ -361,6 +389,12 @@ class Hub:
                     }
 
         return {"reservations": list(reservations())}
+
+    @require_role("importer")
+    async def get_place_stats(self, place_id):
+        return {
+            "uniqueness": float(self._place_stats[place_id].uniqueness),
+        }
 
     def _format_user_name(self, agent_id=None):
         if agent_id is None:
@@ -561,6 +595,28 @@ class TokenInfo:
     claims: dict[str, dict | str | int | float | list | bool]
     roles: set[str]
     expires: datetime.datetime
+
+
+class EMA:
+    """Exponential Moving Average for float values"""
+
+    def __init__(self, alpha=0.25):
+        self._alpha = alpha
+        self._value = None
+
+    def __float__(self):
+        return self._value if self._value is not None else 0.0
+
+    def update(self, new_value):
+        if self._value is None:
+            self._value = new_value
+        else:
+            self._value = (1 - self._alpha) * self._value + self._alpha * new_value
+
+
+@dataclass
+class PlaceStats:
+    uniqueness: EMA = field(default_factory=EMA)
 
 
 def _unmap_ip(ip_str):
