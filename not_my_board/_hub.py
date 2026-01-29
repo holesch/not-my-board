@@ -390,6 +390,12 @@ class Hub:
 
         return {"reservations": list(reservations())}
 
+    @require_role("importer")
+    async def get_place_stats(self, place_id):
+        return {
+            "uniqueness": float(self._place_stats[place_id].uniqueness),
+        }
+
     def _format_user_name(self, agent_id=None):
         if agent_id is None:
             agent_id = connection_id_var.get()
