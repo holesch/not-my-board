@@ -223,3 +223,27 @@ async def test_mapped_ip_agent(hub):
         candidate_ids = [places["places"][0]["id"]]
         await agent.reserve(candidate_ids)
         assert exporter.allowed_ips == ["10.0.0.9"]
+
+
+async def test_return_most_common(hub):
+    async with (
+        register_exporter(hub),
+        register_exporter(hub),
+        register_agent(hub) as agent,
+    ):
+        places = await hub.get_places()
+        candidate_ids = [p["id"] for p in places["places"]]
+
+        # make both places common by reserving them once together
+        reserved_id = await agent.reserve(candidate_ids)
+        await agent.return_reservation(reserved_id)
+
+        # reserve place #1 explicitly
+        reserved_id = await agent.reserve(candidate_ids[:1])
+        await agent.return_reservation(reserved_id)
+
+        # expect place #1 to be treated as unique and to get place #2
+        for _ in range(5):
+            reserved_id = await agent.reserve(candidate_ids)
+            assert reserved_id == candidate_ids[1]
+            await agent.return_reservation(reserved_id)
