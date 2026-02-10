@@ -14,6 +14,7 @@ py.install_sources(
   'not_my_board/_client.py',
   'not_my_board/_export.py',
   'not_my_board/_http.py',
+  'not_my_board/_metrics.py',
   'not_my_board/_models.py',
   'not_my_board/_hub.py',
   'not_my_board/_usbip.py',

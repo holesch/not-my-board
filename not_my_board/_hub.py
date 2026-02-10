@@ -19,6 +19,7 @@ import asgineer
 import not_my_board._auth as auth
 import not_my_board._http as http
 import not_my_board._jsonrpc as jsonrpc
+import not_my_board._metrics as metrics
 import not_my_board._models as models
 import not_my_board._util as util
 
@@ -53,6 +54,8 @@ async def asgi_app(scope, receive, send):
         # asgineer doesn't expose the lifespan hooks. Handle them here
         # before handing over to asgineer
         await _handle_lifespan(scope, receive, send)
+    elif scope["type"] == "http" and scope["path"] == "/metrics":
+        await metrics.asgi_app(scope, receive, send)
     else:
         await _handle_request(scope, receive, send)
 
@@ -203,6 +206,12 @@ class Hub:
             self._issuer_configs = {}
 
         self._id_generator = itertools.count(start=1)
+
+        metrics.PLACES_REGISTERED.set_function(lambda: len(self._places))
+        metrics.PLACES_RESERVED.set_function(
+            lambda: len(self._places) - len(self._available)
+        )
+        metrics.RESERVATION_QUEUE_LENGTH.set_function(lambda: len(self._wait_queue))
 
     @jsonrpc.hidden
     async def startup(self):

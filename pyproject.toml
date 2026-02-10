@@ -30,6 +30,7 @@ dependencies = [
     "async-timeout ~= 5.0; python_version < '3.11'",
     "colorlog",
     "h11",
+    "prometheus-client",
     "pyjwt[crypto]",
     "tabulate",
     "tomli; python_version < '3.11'",

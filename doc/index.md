@@ -62,6 +62,7 @@ reference/cli
 reference/hub-configuration
 reference/export-description
 reference/import-description
+reference/metrics
 ```
 
 ```{toctree}
