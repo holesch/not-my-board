@@ -171,7 +171,7 @@ def _find_import_description(name, with_name=None):
             if not import_description_file.is_file():
                 raise ValueError(f"No import description file exists for name {name}")
 
-    reservation_name = with_name if with_name else import_description_file.stem
+    reservation_name = with_name or import_description_file.stem
     import_description_content = import_description_file.read_text()
     return reservation_name, import_description_content
 
