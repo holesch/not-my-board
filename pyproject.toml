@@ -5,7 +5,8 @@ name = "not-my-board"
 description = "Tool to setup, manage and use a board farm "
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE.txt"}
+license = "MIT"
+license-files = ["LICENSE.txt"]
 authors = [
     {name = "Simon Holesch", email = "simon@holesch.de"},
 ]
@@ -14,7 +15,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.10",
