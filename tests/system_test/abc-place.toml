@@ -1,0 +1,4 @@
+port = 2303
+
+[[parts]]
+compatible = [ "nothing" ]

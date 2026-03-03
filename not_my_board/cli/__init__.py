@@ -299,8 +299,9 @@ async def _edit_command(args):
 
 async def _search_command(args):
     result = await client.search(args.import_description)
-    for entry in result:
-        print(f"@{entry['name']}")
+    names = [entry["name"] for entry in result]
+    for name in sorted(names):
+        print(f"@{name}")
 
 
 async def _show_command(args):

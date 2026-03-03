@@ -66,6 +66,24 @@ async def test_search_all(farm):
     assert "@place3" in place_names
 
 
+async def test_search_is_sorted(farm):
+    async with (
+        farm.exporter.ssh_task(
+            "not-my-board export http://hub.local:2092 ./src/tests/system_test/abc-place.toml",
+            "export-abc",
+            wait_ready=True,
+        ),
+        farm.exporter.ssh_task(
+            "not-my-board export http://hub.local:2092 ./src/tests/system_test/xyz-place.toml",
+            "export-xyz",
+            wait_ready=True,
+        ),
+    ):
+        result = await farm.client.ssh("not-my-board search")
+        place_names = result.stdout.split("\n")
+        assert place_names == sorted(place_names)
+
+
 async def test_search(farm):
     result = await farm.client.ssh(
         "not-my-board search ./src/tests/system_test/nothing.toml"
