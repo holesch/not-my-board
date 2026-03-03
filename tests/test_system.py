@@ -112,3 +112,20 @@ async def test_who_command(farm):
     # there is no authentication, so the user is the user ID in angle brackets
     assert who_line[1][0] == "<"
     assert who_line[1][-1] == ">"
+
+
+async def test_detach_all(farm):
+    await farm.client.ssh(
+        "not-my-board reserve --with-name p1 ./src/tests/system_test/nothing.toml"
+    )
+    await farm.client.ssh(
+        "not-my-board attach --keep-others ./src/tests/system_test/nothing.toml"
+    )
+
+    async def num_reserved():
+        result = await farm.client.ssh("not-my-board list --no-header")
+        return len(result.stdout.splitlines())
+
+    assert await num_reserved() == 2
+    await farm.client.ssh("not-my-board detach")
+    assert await num_reserved() == 0

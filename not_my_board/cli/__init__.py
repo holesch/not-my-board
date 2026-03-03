@@ -108,7 +108,9 @@ def main():
     subparser.add_argument(
         "-k", "--keep", action="store_true", help="don't return reservation"
     )
-    subparser.add_argument("name", help="name of the place to detach")
+    subparser.add_argument(
+        "name", nargs="*", help="names of places to detach (default: all)"
+    )
 
     subparser = add_subcommand("list", help="list reserved places")
     add_verbose_arg(subparser)

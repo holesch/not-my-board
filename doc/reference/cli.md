@@ -27,9 +27,10 @@ Here's a description of all the commands and options `not-my-board` supports.
 : Attach a reserved *Place*. As a convenience this will also implicitly reserve
   the *Place*, if it's not reserved, yet.
 
-**`detach`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-k`**|**`--keep`**\] *name*
+**`detach`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-k`**|**`--keep`**\] \[*name* ...\]
 : Detach an attached *Place*. By default this will also return the reservation:
-  Use {option}`--keep <not-my-board --keep>` to keep the reservation.
+  Use {option}`--keep <not-my-board --keep>` to keep the reservation. If no
+  *name* is given, then all places are detached and optionally returned.
 
 **`list`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : List reserved *Places*.

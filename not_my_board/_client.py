@@ -48,11 +48,20 @@ async def attach(name, keep_others=False):
                     await agent.return_reservation(name=other, force=True)
 
 
-async def detach(name, keep=False):
+async def detach(names, keep=False):
     async with agent_channel() as agent:
-        await agent.detach(name)
-        if not keep:
-            await agent.return_reservation(name)
+        if not names:
+            # detach and optionally return all reservations
+            for item in await agent.list():
+                if item["attached"]:
+                    await agent.detach(item["place"])
+                if not keep:
+                    await agent.return_reservation(item["place"])
+        else:
+            for name in names:
+                await agent.detach(name)
+                if not keep:
+                    await agent.return_reservation(name)
 
 
 async def list_():
