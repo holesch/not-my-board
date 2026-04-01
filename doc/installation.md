@@ -13,3 +13,10 @@ and install `not-my-board` globally:
 ```console
 $ sudo PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install not-my-board
 ```
+
+## Shell Completion (Optional)
+
+For a better command-line experience, you can enable shell completion for bash
+or zsh.
+
+See [Shell Completion](how-to-guides/shell-completion) for setup instructions.

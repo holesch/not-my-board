@@ -49,6 +49,7 @@ tutorials/sharing-http-server
 how-to-guides/deploy-hub
 how-to-guides/set-up-exporter
 how-to-guides/set-up-agent
+how-to-guides/shell-completion
 how-to-guides/usb-export
 how-to-guides/usb-import
 how-to-guides/import-places-in-ci
