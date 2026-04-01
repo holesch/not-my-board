@@ -6,6 +6,7 @@ import logging
 import pathlib
 import sys
 
+import shtab
 import tabulate
 
 import not_my_board._agent as agent
@@ -29,6 +30,9 @@ logger = logging.getLogger(__name__)
 # ruff: noqa: PLR0915
 def main():
     parser = argparse.ArgumentParser(description="Setup, manage and use a board farm")
+    shtab.add_argument_to(
+        parser, ["-s", "--print-completion"]
+    )
     parser.add_argument(
         "-V", "--version", action="version", version=f"%(prog)s {__version__}"
     )
@@ -55,7 +59,7 @@ def main():
             type=pathlib.Path,
             action="append",
             help="path to CA certificates, which should be trusted",
-        )
+        ).complete = shtab.FILE
 
     subparser = add_subcommand("hub", help="start the board farm hub")
     subparser.set_defaults(verbose=True)
@@ -69,7 +73,7 @@ def main():
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
     subparser.add_argument(
         "export_description", type=pathlib.Path, help="path to a export description"
-    )
+    ).complete = shtab.FILE
 
     subparser = add_subcommand("agent", help="start an agent")
     subparser.set_defaults(verbose=True)

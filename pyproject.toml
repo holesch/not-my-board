@@ -32,6 +32,7 @@ dependencies = [
     "h11",
     "prometheus-client",
     "pyjwt[crypto]",
+    "shtab",
     "tabulate",
     "tomli; python_version < '3.11'",
     "uvicorn",
