@@ -47,6 +47,7 @@ py.install_sources(
 
 py.install_sources(
   'not_my_board/cli/__init__.py',
+  'not_my_board/cli/_completion.py',
   subdir: 'not_my_board/cli',
 )
 

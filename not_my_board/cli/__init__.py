@@ -29,9 +29,11 @@ logger = logging.getLogger(__name__)
 
 # ruff: noqa: PLR0915
 def main():
+    from . import _completion  # noqa: PLC0415
+
     parser = argparse.ArgumentParser(description="Setup, manage and use a board farm")
     shtab.add_argument_to(
-        parser, ["-s", "--print-completion"]
+        parser, ["-s", "--print-completion"], preamble=_completion.get_shell_preambles()
     )
     parser.add_argument(
         "-V", "--version", action="version", version=f"%(prog)s {__version__}"
@@ -89,7 +91,7 @@ def main():
     subparser.add_argument("-n", "--with-name", help="reserve under a different name")
     subparser.add_argument(
         "import_description", help="name or full path of an import description"
-    )
+    ).complete = _completion.import_descriptions()
 
     subparser = add_subcommand("return", help="return a place")
     add_verbose_arg(subparser)
@@ -105,7 +107,7 @@ def main():
     )
     subparser.add_argument(
         "name", help="name of a reserved place or an import description"
-    )
+    ).complete = _completion.import_descriptions()
 
     subparser = add_subcommand("detach", help="detach a reserved place")
     add_verbose_arg(subparser)
@@ -128,7 +130,7 @@ def main():
         "import_description",
         nargs="?",
         help="name or full path of an import description",
-    )
+    ).complete = _completion.import_descriptions()
 
     subparser = add_subcommand("show", help="show place")
     add_verbose_arg(subparser)
