@@ -223,6 +223,8 @@ class FakeServer:
             self.requests.append(request.target)
             if request.target == b"/hello":
                 self._send_response(conn, "Hello, World!")
+            elif request.target == b"/error":
+                self._send_response(conn, "Not found", status=404)
             else:
                 raise RuntimeError(f"Unexpected target: {request.target}")
 
@@ -377,3 +379,15 @@ async def test_cache_control_quote_parsing(http_client, fake_server, fake_time):
         ("Cache-Control", 'ignore-this="val1, max-age=60, val2"'),
     ]
     await check_expires_after(5, http_client, fake_server, fake_time)
+
+
+async def test_error_not_cached(http_client, fake_server):
+    cache = http.CacheEntry()
+
+    with pytest.raises(http.ProtocolError):
+        await http_client.get_json("http://test.localhost/error", cache=cache)
+
+    with pytest.raises(http.ProtocolError):
+        await http_client.get_json("http://test.localhost/error", cache=cache)
+
+    assert len(fake_server.requests) == 2

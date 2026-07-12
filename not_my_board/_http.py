@@ -92,10 +92,10 @@ class Client:
         response = await self._request_response(conn, url, to_send)
         response_time = datetime.datetime.now(tz=datetime.timezone.utc)
 
+        await self._check_response_ok(response)
+
         if cache:
             self._update_cache(cache, raw_url, request_time, response_time, response)
-
-        await self._check_response_ok(response)
 
         return json.loads(response.body)
 
