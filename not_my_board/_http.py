@@ -27,10 +27,24 @@ UTF8Decoder = codecs.getincrementaldecoder("utf-8")
 STATUS_OK = 200
 STATUS_FORBIDDEN = 403
 STATUS_METHOD_NOT_ALLOWED = 405
+_STATUS_RETRYABLE = (408, 429, 500, 502, 503, 504, 522, 524)  # like curl --retry
 
 
 class ProtocolError(Exception):
     pass
+
+
+class StatusCodeError(ProtocolError):
+    def __init__(self, message, status_code, body):
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
+
+    def __str__(self):
+        return f"{super().__str__()}: {self.status_code}\n{self.body}"
+
+    def __repr__(self):
+        return f"StatusCodeError(message={self.args[0]!r}, status_code={self.status_code}, body={self.body!r})"
 
 
 class Client:
@@ -49,7 +63,21 @@ class Client:
                 self._proxies[scheme] = self._parse_url(proxies[scheme])
         self._no_proxy = proxies.get("no", "")
 
-    async def get_json(self, url, cache=None):
+    async def get_json(self, url, cache=None, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                return await self._request_json("GET", url, cache=cache)
+            except StatusCodeError as e:
+                if e.status_code in _STATUS_RETRYABLE:
+                    logger.warning(
+                        "GET %s failed with status code %d, retrying...",
+                        url,
+                        e.status_code,
+                    )
+                    await asyncio.sleep(2**attempt)  # exponential backoff
+                else:
+                    raise
+
         return await self._request_json("GET", url, cache=cache)
 
     async def post_form(self, url, params):
@@ -92,7 +120,7 @@ class Client:
         response = await self._request_response(conn, url, to_send)
         response_time = datetime.datetime.now(tz=datetime.timezone.utc)
 
-        await self._check_response_ok(response)
+        self._check_response_ok(response)
 
         if cache:
             self._update_cache(cache, raw_url, request_time, response_time, response)
@@ -118,13 +146,17 @@ class Client:
                     body += event.data
                 elif isinstance(event, h11.EndOfMessage | h11.PAUSED):
                     break
+                else:
+                    raise ProtocolError(f"Unexpected event: {event}")
 
             return Response(status_code, headers, body)
 
-    async def _check_response_ok(self, response):
+    def _check_response_ok(self, response):
         if response.status_code != STATUS_OK:
-            raise ProtocolError(
-                f"Expected status code {STATUS_OK}, got {response.status_code}: {response.body}"
+            raise StatusCodeError(
+                f"Expected status code {STATUS_OK}, got",
+                response.status_code,
+                response.body,
             )
 
     @contextlib.asynccontextmanager
@@ -251,25 +283,31 @@ class Client:
                 method="CONNECT", target=f"{target_host}:{target_port}", headers=headers
             )
         )
+        to_send += conn.send(h11.EndOfMessage())
 
         async with util.connect(proxy_host, proxy_port, ssl=ssl_) as (reader, writer):
             writer.write(to_send)
-            writer.write(conn.send(h11.EndOfMessage()))
             await writer.drain()
 
+            status_code = None
+            body = b""
             while True:
                 event = conn.next_event()
                 if event is h11.NEED_DATA:
                     conn.receive_data(await reader.read(4096))
                 elif isinstance(event, h11.Response):
-                    response = event
-                    if response.status_code != STATUS_OK:
-                        raise ProtocolError(
-                            f"Expected status code {STATUS_OK}, got {event.status_code}"
-                        )
-
-                    yield reader, writer, conn.trailing_data[0]
-                    break
+                    status_code = event.status_code
+                    if status_code == STATUS_OK:
+                        yield reader, writer, conn.trailing_data[0]
+                        break
+                elif isinstance(event, h11.Data):
+                    body += event.data
+                elif isinstance(event, h11.EndOfMessage | h11.PAUSED):
+                    raise StatusCodeError(
+                        f"Expected status code {STATUS_OK}, got",
+                        status_code,
+                        body,
+                    )
                 else:
                     raise ProtocolError(f"Unexpected event: {event}")
 

@@ -192,6 +192,7 @@ class FakeServer:
     def __init__(self):
         self.requests = []
         self.headers = []
+        self.fail_with = []
 
     @contextlib.asynccontextmanager
     async def connect(self, host, port, ssl=None):
@@ -221,7 +222,9 @@ class FakeServer:
     def _handle_request(self, conn, request):
         if request.method == b"GET":
             self.requests.append(request.target)
-            if request.target == b"/hello":
+            if request.target == b"/hello" and self.fail_with:
+                self._send_response(conn, "Failed", status=self.fail_with.pop(0))
+            elif request.target == b"/hello":
                 self._send_response(conn, "Hello, World!")
             elif request.target == b"/error":
                 self._send_response(conn, "Not found", status=404)
@@ -391,3 +394,53 @@ async def test_error_not_cached(http_client, fake_server):
         await http_client.get_json("http://test.localhost/error", cache=cache)
 
     assert len(fake_server.requests) == 2
+
+
+@pytest.fixture
+def sleeps(monkeypatch):
+    sleeps_ = []
+
+    async def fake_sleep(delay):
+        sleeps_.append(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    return sleeps_
+
+
+async def test_retry_then_success(http_client, fake_server, sleeps):
+    fake_server.fail_with = [503, 429]
+
+    res = await http_client.get_json("http://test.localhost/hello")
+
+    assert res == "Hello, World!"
+    assert len(fake_server.requests) == 3
+    assert sleeps == [1, 2]
+
+
+async def test_retry_exhausted(http_client, fake_server, sleeps):
+    fake_server.fail_with = [503] * 10
+
+    with pytest.raises(http.StatusCodeError) as exc_info:
+        await http_client.get_json("http://test.localhost/hello")
+
+    assert exc_info.value.status_code == 503
+    assert len(fake_server.requests) == 4
+    assert sleeps == [1, 2, 4]
+
+
+async def test_no_retries(http_client, fake_server, sleeps):
+    fake_server.fail_with = [503]
+
+    with pytest.raises(http.StatusCodeError):
+        await http_client.get_json("http://test.localhost/hello", max_retries=0)
+
+    assert len(fake_server.requests) == 1
+    assert sleeps == []
+
+
+async def test_no_retry_on_client_error(http_client, fake_server, sleeps):
+    with pytest.raises(http.StatusCodeError):
+        await http_client.get_json("http://test.localhost/error")
+
+    assert len(fake_server.requests) == 1
+    assert sleeps == []
