@@ -368,14 +368,16 @@ async def test_permission_lost(hub, http_client, token_store_path, fake_time):
     exporter_coro = fake_exporter.communicate_forever()
 
     with pytest.raises(RuntimeError) as execinfo:
-        async with util.background_task(hub_coro):
-            async with util.background_task(exporter_coro):
-                await fake_exporter.register_place()
-                http_client.set_sub("invalid-user")
-                fake_time.add_time(60)
-                # Token expires and hub requests refresh. New token contains
-                # a different "sub" claim, which has no permissions.
-                await real_sleep(1)
+        async with (
+            util.background_task(hub_coro),
+            util.background_task(exporter_coro),
+        ):
+            await fake_exporter.register_place()
+            http_client.set_sub("invalid-user")
+            fake_time.add_time(60)
+            # Token expires and hub requests refresh. New token contains
+            # a different "sub" claim, which has no permissions.
+            await real_sleep(1)
 
     assert "Permission lost" in str(execinfo.value)
 
