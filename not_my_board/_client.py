@@ -159,30 +159,41 @@ def _find_import_description(name, with_name=None):
     if "/" in name:
         import_description_file = pathlib.Path(name)
     else:
-        path = pathlib.Path()
-        home = pathlib.Path.home()
-
-        while path != home:
-            import_description_file = path / ".not-my-board" / f"{name}.toml"
-            if import_description_file.is_file():
-                break
-
-            if path != path.parent:
-                path = path.parent
-            else:
-                # we're at '/', stop loop
-                path = home
-        else:
-            config_home = pathlib.Path(
-                os.environ.get("XDG_CONFIG_HOME", home / ".config")
-            )
-            import_description_file = config_home / "not-my-board" / f"{name}.toml"
-            if not import_description_file.is_file():
-                raise ValueError(f"No import description file exists for name {name}")
+        import_description_file = list_import_descriptions().get(name)
+        if import_description_file is None:
+            raise ValueError(f"No import description file exists for name {name}")
 
     reservation_name = with_name or import_description_file.stem
     import_description_content = import_description_file.read_text()
     return reservation_name, import_description_content
+
+
+def list_import_descriptions():
+    """Return a dict of name -> file for all findable import descriptions.
+
+    If a name exists in multiple directories, the highest priority one wins.
+    """
+    found = {}
+    for directory in _import_description_dirs():
+        for file in sorted(directory.glob("*.toml")):
+            if file.is_file():
+                found.setdefault(file.stem, file)
+    return found
+
+
+def _import_description_dirs():
+    """Yield directories searched for import descriptions, by priority."""
+    home = pathlib.Path.home()
+    path = pathlib.Path.cwd()
+
+    while True:
+        yield path / ".not-my-board"
+        if path in (home, path.parent):
+            break
+        path = path.parent
+
+    config_home = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", home / ".config"))
+    yield config_home / "not-my-board"
 
 
 @contextlib.asynccontextmanager

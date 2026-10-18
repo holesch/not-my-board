@@ -132,6 +132,10 @@ def main():
         help="name or full path of an import description",
     ).complete = completion.import_descriptions()
 
+    # internal subcommand for shell completion, hidden from help
+    subparser = add_subcommand("imports")
+    add_verbose_arg(subparser)
+
     subparser = add_subcommand("show", help="show place")
     add_verbose_arg(subparser)
     subparser.add_argument(
@@ -308,6 +312,11 @@ async def _search_command(args):
     names = [entry["name"] for entry in result]
     for name in sorted(names):
         print(f"@{name}")
+
+
+def _imports_command(_):
+    for name in sorted(client.list_import_descriptions()):
+        print(name)
 
 
 async def _show_command(args):
