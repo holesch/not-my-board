@@ -1,18 +1,44 @@
 """Shell completion helpers for not-my-board CLI."""
 
+_PREFIX = "_shtab_not_my_board_complete"
+
+
+def _complete(kind):
+    return {
+        "bash": f"{_PREFIX}_{kind}_bash",
+        "zsh": f"{_PREFIX}_{kind}_zsh",
+    }
+
 
 def import_descriptions():
-    """Return shtab-compatible completion dict for import descriptions."""
-    return {
-        "bash": "_shtab_not_my_board_complete_import_descriptions_or_files_bash",
-        "zsh": "_shtab_not_my_board_complete_import_descriptions_or_files_zsh",
-    }
+    """Completion for import description names and paths."""
+    return _complete("import_descriptions_or_files")
+
+
+def reservations():
+    """Completion for names of reserved places."""
+    return _complete("reservations")
+
+
+def reservations_or_import_descriptions():
+    """Completion for reserved places, import description names and paths."""
+    return _complete("reservations_or_import_descriptions_or_files")
 
 
 def get_shell_preambles():
     """Return shell-specific preambles for both bash and zsh."""
-    return {"bash": _BASH_PREAMBLE, "zsh": _ZSH_PREAMBLE}
+    return {
+        "bash": _SHARED_PREAMBLE + _BASH_PREAMBLE,
+        "zsh": _SHARED_PREAMBLE + _ZSH_PREAMBLE,
+    }
 
+
+_SHARED_PREAMBLE = r"""
+_shtab_not_my_board_list_names() {
+    # `list` prints "<name>@<place_name>  <status>"
+    not-my-board list -n 2>/dev/null | awk '{ sub(/@.*/, "", $1); print $1 }'
+}
+"""
 
 # shtab runs the Bash completers in a subshell and reads candidates from their
 # stdout, so they can't modify COMPREPLY or call compopt. shtab enables the
@@ -28,7 +54,11 @@ _shtab_not_my_board_filter_bash() {
     return 0
 }
 
-_shtab_not_my_board_complete_import_descriptions_or_files_bash() {
+_shtab_not_my_board_print_names_bash() {
+    _shtab_not_my_board_list_names | _shtab_not_my_board_filter_bash "$1"
+}
+
+_shtab_not_my_board_print_import_descriptions_bash() {
     not-my-board imports 2>/dev/null | _shtab_not_my_board_filter_bash "$1"
     # without a "/" the argument is treated as a name, so prefix files in
     # the current directory with "./"
@@ -37,6 +67,19 @@ _shtab_not_my_board_complete_import_descriptions_or_files_bash() {
     else
         compgen -f -- "./$1"
     fi
+}
+
+_shtab_not_my_board_complete_reservations_bash() {
+    _shtab_not_my_board_print_names_bash "$1"
+}
+
+_shtab_not_my_board_complete_import_descriptions_or_files_bash() {
+    _shtab_not_my_board_print_import_descriptions_bash "$1"
+}
+
+_shtab_not_my_board_complete_reservations_or_import_descriptions_or_files_bash() {
+    _shtab_not_my_board_print_names_bash "$1"
+    _shtab_not_my_board_print_import_descriptions_bash "$1"
 }
 """
 
@@ -51,10 +94,24 @@ _shtab_not_my_board_files_zsh() {
     fi
 }
 
+_shtab_not_my_board_complete_reservations_zsh() {
+    local -a names=(${(f)"$(_shtab_not_my_board_list_names)"})
+    _describe 'place' names
+}
+
 _shtab_not_my_board_complete_import_descriptions_or_files_zsh() {
-    local -a names=(${(f)"$(not-my-board imports 2>/dev/null)"})
+    local -a imports=(${(f)"$(not-my-board imports 2>/dev/null)"})
     _alternative \
-        'names:import description:compadd -a names' \
+        'imports:import description:compadd -a imports' \
+        'files:file:_shtab_not_my_board_files_zsh'
+}
+
+_shtab_not_my_board_complete_reservations_or_import_descriptions_or_files_zsh() {
+    local -a imports=(${(f)"$(not-my-board imports 2>/dev/null)"})
+    local -a reserved=(${(f)"$(_shtab_not_my_board_list_names)"})
+    _alternative \
+        'imports:import description:compadd -a imports' \
+        'reserved:reserved place:compadd -a reserved' \
         'files:file:_shtab_not_my_board_files_zsh'
 }
 """

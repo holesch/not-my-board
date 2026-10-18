@@ -95,7 +95,9 @@ def main():
 
     subparser = add_subcommand("return", help="return a place")
     add_verbose_arg(subparser)
-    subparser.add_argument("name", help="name of the place to return")
+    subparser.add_argument("name", help="name of the place to return").complete = (
+        completion.reservations()
+    )
 
     subparser = add_subcommand("attach", help="attach a reserved place")
     add_verbose_arg(subparser)
@@ -107,7 +109,7 @@ def main():
     )
     subparser.add_argument(
         "name", help="name of a reserved place or an import description"
-    ).complete = completion.import_descriptions()
+    ).complete = completion.reservations_or_import_descriptions()
 
     subparser = add_subcommand("detach", help="detach a reserved place")
     add_verbose_arg(subparser)
@@ -116,7 +118,7 @@ def main():
     )
     subparser.add_argument(
         "name", nargs="*", help="names of places to detach (default: all)"
-    )
+    ).complete = completion.reservations()
 
     subparser = add_subcommand("list", help="list reserved places")
     add_verbose_arg(subparser)
@@ -141,7 +143,9 @@ def main():
     subparser.add_argument(
         "-j", "--json", action="store_true", help="format output as JSON"
     )
-    subparser.add_argument("name", help="name of a reserved place or a place name")
+    subparser.add_argument(
+        "name", help="name of a reserved place or a place name"
+    ).complete = completion.reservations()
 
     subparser = add_subcommand(
         "status", help="show status of attached places and its interfaces"
@@ -162,7 +166,9 @@ def main():
 
     subparser = add_subcommand("edit", help="edit a reserved place")
     add_verbose_arg(subparser)
-    subparser.add_argument("name", help="name of the place to edit")
+    subparser.add_argument("name", help="name of the place to edit").complete = (
+        completion.reservations()
+    )
 
     subparser = add_subcommand("who", help="show who has currently reserved a place")
     add_verbose_arg(subparser)
