@@ -204,7 +204,7 @@ class Agent(util.ContextStack):
     async def attach(self, name):
         async with self._reservation(name) as reservation:
             if reservation.is_attached:
-                raise RuntimeError(f'Place "{name}" is already attached')
+                return
 
             coros = [t.open() for t in reservation.tunnels.values()]
 
@@ -214,10 +214,8 @@ class Agent(util.ContextStack):
 
     async def detach(self, name):
         async with self._reservation(name) as reservation:
-            if not reservation.is_attached:
-                raise RuntimeError(f'Place "{name}" is not attached')
-
-            await self._detach_reservation(reservation)
+            if reservation.is_attached:
+                await self._detach_reservation(reservation)
 
     async def _detach_reservation(self, reservation):
         coros = [t.close() for t in reservation.tunnels.values()]

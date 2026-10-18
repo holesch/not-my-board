@@ -377,9 +377,7 @@ async def test_attach_twice(agent_io):
     agent_io.places = [PLACE_1]
     await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     await agent_io.agent_api.attach("fake")
-    with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.attach("fake")
-    assert "is already attached" in str(execinfo.value)
+    await agent_io.agent_api.attach("fake")
 
 
 async def test_detach_twice(agent_io):
@@ -387,9 +385,7 @@ async def test_detach_twice(agent_io):
     await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
     await agent_io.agent_api.attach("fake")
     await agent_io.agent_api.detach("fake")
-    with pytest.raises(RuntimeError) as execinfo:
-        await agent_io.agent_api.detach("fake")
-    assert "is not attached" in str(execinfo.value)
+    await agent_io.agent_api.detach("fake")
 
 
 async def test_complex_match(agent_io):

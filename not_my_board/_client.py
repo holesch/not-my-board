@@ -53,8 +53,7 @@ async def detach(names, keep=False):
         if not names:
             # detach and optionally return all reservations
             for item in await agent.list():
-                if item["attached"]:
-                    await agent.detach(item["place"])
+                await agent.detach(item["place"])
                 if not keep:
                     await agent.return_reservation(item["place"])
         else:
