@@ -91,7 +91,7 @@ def main():
     subparser.add_argument("-n", "--with-name", help="reserve under a different name")
     subparser.add_argument(
         "import_description", help="name or full path of an import description"
-    ).complete = completion.import_descriptions()
+    ).complete = completion.import_descriptions_with_places()
 
     subparser = add_subcommand("return", help="return a place")
     add_verbose_arg(subparser)
@@ -145,7 +145,7 @@ def main():
     )
     subparser.add_argument(
         "name", help="name of a reserved place or a place name"
-    ).complete = completion.reservations()
+    ).complete = completion.reservations_or_places()
 
     subparser = add_subcommand(
         "status", help="show status of attached places and its interfaces"
