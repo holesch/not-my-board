@@ -28,24 +28,28 @@ async def return_reservation(name):
 
 async def attach(name, keep_others=False):
     async with agent_channel() as agent:
-        reserved_names = {e["place"] for e in await agent.list()}
-        if name in reserved_names:
-            await agent.attach(name)
+        reservations = await agent.list()
+        reserved_names = {e["place"] for e in reservations}
 
-            others = reserved_names - {name}
-            if not keep_others and others:
-                for other in others:
-                    await agent.return_reservation(name=other, force=True)
-        else:
+        if name not in reserved_names:
             name, place_name = _parse_name(name)
             result = _find_import_description(name)
-            reservation_name, import_description_toml = result
-            await agent.reserve(reservation_name, import_description_toml, place_name)
-            await agent.attach(reservation_name)
+            name, import_description_toml = result
+            # Reserve first, so the old places are kept if this fails.
+            await agent.reserve(name, import_description_toml, place_name)
 
-            if not keep_others and reserved_names:
-                for other in reserved_names:
-                    await agent.return_reservation(name=other, force=True)
+        to_return = [] if keep_others else reserved_names - {name}
+
+        # Detach the old places first, so their tunnels don't conflict with
+        # the new ones.
+        for item in reservations:
+            if item["place"] in to_return and item["attached"]:
+                await agent.detach(item["place"])
+
+        await agent.attach(name)
+
+        for other in to_return:
+            await agent.return_reservation(name=other)
 
 
 async def detach(names, keep=False):
