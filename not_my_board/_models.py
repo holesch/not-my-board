@@ -128,7 +128,7 @@ class ImportedPart(BaseModel):
 @dataclasses.dataclass
 class ImportDesc(BaseModel):
     name: str
-    parts: dict[str, ImportedPart]
+    parts: dict[str, ImportedPart] = dataclasses.field(default_factory=dict)
     auto_return_time: str = "10h"
 
 

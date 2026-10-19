@@ -301,7 +301,7 @@ class Agent(util.ContextStack):
             ]
 
             matching = _find_matching(imported_part_sets, reservation.place)
-            if not matching:
+            if matching is None:
                 raise RuntimeError("New import description doesn't match with place")
 
             new_tunnel_descs = _create_tunnel_descriptions(
@@ -419,7 +419,7 @@ def _filter_places(import_description, places):
 
     for place in places:
         matching = _find_matching(imported_part_sets, place)
-        if matching:
+        if matching is not None:
             candidates[place.id] = _create_tunnel_descriptions(
                 import_description, place, matching
             )

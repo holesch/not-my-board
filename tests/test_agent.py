@@ -225,6 +225,13 @@ async def test_reserve(agent_io):
     assert agent_io.hub.reserved == {PLACE_1.id}
 
 
+async def test_reserve_empty_import_description(agent_io):
+    agent_io.places = [PLACE_1]
+    await agent_io.agent_api.reserve("fake", "")
+    assert agent_io.hub.reserve_request == [PLACE_1.id]
+    assert agent_io.hub.reserved == {PLACE_1.id}
+
+
 async def test_attach(agent_io):
     agent_io.places = [PLACE_1]
 
