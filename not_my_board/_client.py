@@ -35,8 +35,21 @@ async def attach(name, keep_others=False):
             name, place_name = _parse_name(name)
             result = _find_import_description(name)
             name, import_description_toml = result
-            # Reserve first, so the old places are kept if this fails.
-            await agent.reserve(name, import_description_toml, place_name)
+
+            existing = next((r for r in reservations if r["place"] == name), None)
+            # Already reserved exactly like this, nothing to reserve.
+            is_reused = existing and existing["place_name"] == place_name
+
+            if not is_reused:
+                if existing and not keep_others:
+                    # Same reservation name, but a different place (e.g.
+                    # switching from pi@pi1 to pi@pi2). The name must be free
+                    # before reserving, so replace the old reservation now.
+                    await agent.return_reservation(name=name, force=True)
+                    reserved_names.discard(name)
+
+                # Reserve first, so the other old places are kept if this fails.
+                await agent.reserve(name, import_description_toml, place_name)
 
         to_return = [] if keep_others else reserved_names - {name}
 

@@ -147,3 +147,19 @@ async def test_detach_all(farm):
     assert await num_reserved() == 2
     await farm.client.ssh("not-my-board detach")
     assert await num_reserved() == 0
+
+
+async def test_attach_other_place_of_same_import_description(farm):
+    async def list_reservations():
+        result = await farm.client.ssh("not-my-board list --no-header")
+        return [line.split() for line in result.stdout.splitlines()]
+
+    await farm.client.ssh(
+        "not-my-board attach ./src/tests/system_test/nothing.toml@place1"
+    )
+    await farm.client.ssh(
+        "not-my-board attach ./src/tests/system_test/nothing.toml@place2"
+    )
+
+    reservations = await list_reservations()
+    assert [r[0] for r in reservations] == ["nothing@place2"]
