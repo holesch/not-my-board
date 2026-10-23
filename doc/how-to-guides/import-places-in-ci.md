@@ -26,7 +26,7 @@ For example with GitHub Actions, add permissions to the *Hub* config:
 [[auth.permissions]]
 claims.actor_id = "8659229"  # holesch
 claims.repository = "holesch/not-my-board"
-claims.workflow = "on-push"
+claims.workflow = "ci"
 claims.iss = "https://token.actions.githubusercontent.com"
 roles = ["importer"]
 ```
