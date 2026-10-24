@@ -7,17 +7,19 @@ import pathlib
 import sys
 
 import shtab
-import tabulate
 
-import not_my_board._agent as agent
-import not_my_board._auth as auth
-import not_my_board._client as client
-import not_my_board._export as export
-import not_my_board._http as http
 import not_my_board._util as util
-from not_my_board._hub import run_hub
 
 from . import _completion as completion
+
+# only load the modules required by the selected subcommand
+agent = util.lazy_import("not_my_board._agent")
+auth = util.lazy_import("not_my_board._auth")
+client = util.lazy_import("not_my_board._client")
+export = util.lazy_import("not_my_board._export")
+http = util.lazy_import("not_my_board._http")
+hub = util.lazy_import("not_my_board._hub")
+tabulate = util.lazy_import("tabulate")
 
 try:
     from ..__about__ import __version__
@@ -183,7 +185,7 @@ def main():
 
 
 def _hub_command(_):
-    run_hub()
+    hub.run_hub()
 
 
 async def _export_command(args):
