@@ -105,6 +105,7 @@ class BaseModel:
 
 NonNegativeInt = Annotated[int, ValueRange(min_=0)]
 PositiveInt = Annotated[int, ValueRange(min_=1)]
+Name = Annotated[str, Regex(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")]
 UsbId = Annotated[str, Regex(r"[1-9][0-9]*-[1-9][0-9]*(\.[1-9][0-9]*)*")]
 
 
@@ -120,15 +121,15 @@ class TcpImportDesc(BaseModel):
 
 @dataclasses.dataclass
 class ImportedPart(BaseModel):
-    compatible: list[str]
-    usb: dict[str, UsbImportDesc] = dataclasses.field(default_factory=dict)
-    tcp: dict[str, TcpImportDesc] = dataclasses.field(default_factory=dict)
+    compatible: list[Name]
+    usb: dict[Name, UsbImportDesc] = dataclasses.field(default_factory=dict)
+    tcp: dict[Name, TcpImportDesc] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class ImportDesc(BaseModel):
-    name: str
-    parts: dict[str, ImportedPart] = dataclasses.field(default_factory=dict)
+    name: Name
+    parts: dict[Name, ImportedPart] = dataclasses.field(default_factory=dict)
     auto_return_time: str = "10h"
 
 
@@ -145,14 +146,14 @@ class TcpExportDesc(BaseModel):
 
 @dataclasses.dataclass
 class ExportedPart(BaseModel):
-    compatible: list[str]
-    usb: dict[str, UsbExportDesc] = dataclasses.field(default_factory=dict)
-    tcp: dict[str, TcpExportDesc] = dataclasses.field(default_factory=dict)
+    compatible: list[Name]
+    usb: dict[Name, UsbExportDesc] = dataclasses.field(default_factory=dict)
+    tcp: dict[Name, TcpExportDesc] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class ExportDesc(BaseModel):
-    name: str
+    name: Name
     port: PositiveInt
     parts: list[ExportedPart]
 
