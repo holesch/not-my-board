@@ -36,6 +36,12 @@ async def test_usb_forwarding(vms):
             "not-my-board agent http://hub.local:2092", "agent", wait_ready=True
         ),
     ):
+        result = await vms.client.ssh("not-my-board usb-ports -n")
+        assert result.stdout == ""
+        ports = await usb_ports(vms.client)
+        assert ports[0] == ["1-1", "2-1", "-", "-", "-", "-"]
+        assert ports[1] == ["1-2", "2-2", "-", "-", "-", "-"]
+
         await vms.client.ssh("not-my-board attach ./src/tests/qemu-usb.toml")
         # TODO attach still returns before the device is available.
         # would be nice if it blocks until the device is ready.
@@ -65,6 +71,10 @@ async def test_usb_forwarding(vms):
             "2-1",
         ]
 
+        ports = await usb_ports(vms.client)
+        assert ports[0] == ["1-1", "2-1", "SS", "qemu-usb", "flash-drive", "usb0"]
+        assert ports[1] == ["1-2", "2-2", "-", "-", "-", "-"]
+
         try:
             await vms.exporter.usb_detach()
             await vms.client.ssh_poll("! test -e /sys/bus/usb/devices/2-1")
@@ -80,6 +90,10 @@ async def test_usb_forwarding(vms):
         await vms.client.ssh_poll("test -e /sys/bus/usb/devices/2-2")
         await vms.client.ssh("! test -e /sys/bus/usb/devices/2-1")
 
+        ports = await usb_ports(vms.client)
+        assert ports[0] == ["1-1", "2-1", "-", "-", "-", "-"]
+        assert ports[1] == ["1-2", "2-2", "SS", "qemu-usb", "flash-drive", "usb0"]
+
         await vms.client.ssh("not-my-board detach -k qemu-usb")
         await vms.client.ssh("! test -e /sys/bus/usb/devices/2-2")
 
@@ -89,8 +103,19 @@ async def test_usb_forwarding(vms):
         status_line = status_lines[1].split()
         assert status_line[5] == "1-2/2-2"
 
+        # still reserved, but not attached
+        ports = await usb_ports(vms.client)
+        assert ports[1] == ["1-2", "2-2", "-", "qemu-usb", "flash-drive", "usb0"]
+
     # When the exporter is killed, then it should clean up and restore the
     # default USB driver.
     result = await vms.exporter.ssh("readlink /sys/bus/usb/devices/2-1/driver")
     driver_name = pathlib.Path(result.stdout).name
     assert driver_name == "usb"
+
+
+async def usb_ports(vm):
+    """Return the columns of "usb-ports" after Port by port_num"""
+    result = await vm.ssh("not-my-board usb-ports -n -a")
+    rows = [line.split() for line in result.stdout.splitlines()]
+    return {int(row[0]): row[1:] for row in rows}

@@ -50,7 +50,8 @@ def main():
     def add_subcommand(name, *args, **kwargs):
         subparser = subparsers.add_parser(name, *args, **kwargs)
         subparser.set_defaults(
-            func=globals()[f"_{name}_command"], log_level=logging.WARNING
+            func=globals()[f"_{name.replace('-', '_')}_command"],
+            log_level=logging.WARNING,
         )
         subparser.add_argument(
             "-v", "--verbose", action="store_true", help="Enable debug logs"
@@ -143,6 +144,16 @@ def main():
 
     subparser = add_subcommand(
         "status", help="show status of attached places and its interfaces"
+    )
+    subparser.add_argument(
+        "-n", "--no-header", action="store_true", help="Hide table header"
+    )
+
+    subparser = add_subcommand(
+        "usb-ports", help="show which imported USB ports are in use"
+    )
+    subparser.add_argument(
+        "-a", "--all", action="store_true", help="Show unused ports, too"
     )
     subparser.add_argument(
         "-n", "--no-header", action="store_true", help="Hide table header"
@@ -263,6 +274,29 @@ async def _status_command(args):
         return row
 
     _print_table(args, headers, status_list, row)
+
+
+async def _usb_ports_command(args):
+    ports = await client.usb_ports()
+    if not args.all:
+        # hide ports, that are neither in use nor reserved
+        ports = [p for p in ports if p["used"] or p["place"]]
+    headers = ["Port", "HS", "SS", "Used", "Place", "Part", "Interface"]
+
+    def row(entry):
+        used = entry["used"]
+        # Only one device should be attached to one port_num
+        color = Format.GREEN if len(used) == 1 else Format.RED
+
+        def highlight(text, is_used):
+            return f"{color}{text}{Format.RESET}" if is_used else text
+
+        busids = [highlight(entry[hub], hub in used) for hub in ("hs", "ss")]
+        used_str = highlight("+".join(used).upper(), used) if used else "-"
+        imported_by = [entry[k] or "-" for k in ("place", "part", "interface")]
+        return [entry["port_num"], *busids, used_str, *imported_by]
+
+    _print_table(args, headers, ports, row)
 
 
 async def _uevent_command(args):

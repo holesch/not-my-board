@@ -280,77 +280,85 @@ async def attach(reader, writer, busid, port_num):
 
 
 def _port_num_to_vhci_port(port_num, speed):
-    """Map port_num and speed to port, that is passed to Kernel
-
-    Example with vhci_nr_hcs=2 and nports=8:
-
-        vhci_hcd    hub   speed  port_num  vhci_port
-        vhci_hcd.0  usb1  hs     0         0
-        vhci_hcd.0  usb1  hs     1         1
-        vhci_hcd.0  usb2  ss     0         2
-        vhci_hcd.0  usb2  ss     1         3
-        vhci_hcd.1  usb3  hs     2         4
-        vhci_hcd.1  usb3  hs     3         5
-        vhci_hcd.1  usb4  ss     2         6
-        vhci_hcd.1  usb4  ss     3         7
-    """
-
-    platform_path = pathlib.Path("/sys/devices/platform")
-    vhci_nr_hcs = len(list(platform_path.glob("vhci_hcd.*")))
-    nports = int((platform_path / "vhci_hcd.0/nports").read_text())
-
-    # calculate number of ports each vhci_hcd.* has
-    vhci_ports = nports // vhci_nr_hcs
-    # calculate number of ports each hub has
-    vhci_hc_ports = vhci_ports // 2
-
-    vhci_hcd_nr = port_num // vhci_hc_ports
-    vhci_port = (vhci_hcd_nr * vhci_ports) + (port_num % vhci_hc_ports)
-
     super_speed = 5  # USB_SPEED_SUPER (USB 3.0)
-    if speed == super_speed:
-        vhci_port += vhci_hc_ports
-
-    if vhci_port >= nports:
-        raise RuntimeError(
-            f"Configured port_num is out of range. Expected max {(nports // 2) - 1}, got {port_num}"
-        )
-
-    return vhci_port
+    layout = _VhciLayout.from_sysfs()
+    return layout.to_vhci_port(port_num, super_speed=speed == super_speed)
 
 
 def port_num_to_busid(port_num):
-    """Map port_num to busid
+    layout = _VhciLayout.from_sysfs()
+    return layout.to_busids(port_num)
 
-    Example with vhci_nr_hcs=2 and nports=8:
 
-        vhci_hcd    hub   port_num  busid
-        vhci_hcd.0  usb5  0         5-1
-        vhci_hcd.0  usb5  1         5-2
-        vhci_hcd.0  usb6  0         6-1
-        vhci_hcd.0  usb6  1         6-2
-        vhci_hcd.1  usb7  2         7-1
-        vhci_hcd.1  usb7  3         7-2
-        vhci_hcd.1  usb8  2         8-1
-        vhci_hcd.1  usb8  3         8-2
+@dataclasses.dataclass
+class _VhciLayout:
+    """Mapping between port_num, vhci_port and busid
+
+    Every vhci_hcd.* has a high speed (hs) and a super speed (ss) hub with the
+    same number of ports. A port_num maps to the same port on both hubs, like a
+    physical USB 3 port. Example with vhci_nr_hcs=2 and nports=8:
+
+        vhci_hcd    hub   speed  port_num  vhci_port  busid
+        vhci_hcd.0  usb5  hs     0         0          5-1
+        vhci_hcd.0  usb5  hs     1         1          5-2
+        vhci_hcd.0  usb6  ss     0         2          6-1
+        vhci_hcd.0  usb6  ss     1         3          6-2
+        vhci_hcd.1  usb7  hs     2         4          7-1
+        vhci_hcd.1  usb7  hs     3         5          7-2
+        vhci_hcd.1  usb8  ss     2         6          8-1
+        vhci_hcd.1  usb8  ss     3         7          8-2
     """
-    platform_path = pathlib.Path("/sys/devices/platform")
-    vhci_nr_hcs = len(list(platform_path.glob("vhci_hcd.*")))
-    nports = int((platform_path / "vhci_hcd.0/nports").read_text())
 
-    # calculate number of ports each vhci_hcd.* has
-    vhci_ports = nports // vhci_nr_hcs
-    # calculate number of ports each hub has
-    vhci_hc_ports = vhci_ports // 2
+    nr_hcs: int
+    nports: int
 
-    vhci_hcd_nr = port_num // vhci_hc_ports
+    @classmethod
+    def from_sysfs(cls):
+        platform_path = pathlib.Path("/sys/devices/platform")
+        nr_hcs = len(list(platform_path.glob("vhci_hcd.*")))
+        nports = int((platform_path / "vhci_hcd.0/nports").read_text())
+        return cls(nr_hcs, nports)
 
-    devnum = port_num - (vhci_hcd_nr * vhci_hc_ports) + 1
+    @property
+    def num_port_nums(self):
+        return self.nports // 2
 
-    vhci_hcd = platform_path / f"vhci_hcd.{vhci_hcd_nr}"
-    for hub in vhci_hcd.glob("usb[0-9]*/"):
-        hub = _UsbDevice(hub)
-        yield f"{hub.busnum}-{devnum}"
+    @property
+    def _hcd_ports(self):
+        # number of ports each vhci_hcd.* has
+        return self.nports // self.nr_hcs
+
+    @property
+    def _hub_ports(self):
+        # number of ports each hub has
+        return self._hcd_ports // 2
+
+    def to_vhci_port(self, port_num, super_speed):
+        if not 0 <= port_num < self.num_port_nums:
+            raise RuntimeError(
+                "Configured port_num is out of range. "
+                f"Expected max {self.num_port_nums - 1}, got {port_num}"
+            )
+
+        hcd_nr, hub_port = divmod(port_num, self._hub_ports)
+        vhci_port = hcd_nr * self._hcd_ports + hub_port
+        if super_speed:
+            vhci_port += self._hub_ports
+        return vhci_port
+
+    def to_port_num(self, vhci_port):
+        hcd_nr, hcd_port = divmod(vhci_port, self._hcd_ports)
+        return hcd_nr * self._hub_ports + hcd_port % self._hub_ports
+
+    def to_busids(self, port_num):
+        """Return the busids of port_num on the hs and ss hub, in that order"""
+        hcd_nr, hub_port = divmod(port_num, self._hub_ports)
+        devnum = hub_port + 1
+
+        vhci_hcd = pathlib.Path(f"/sys/devices/platform/vhci_hcd.{hcd_nr}")
+        hubs = [_UsbDevice(path) for path in vhci_hcd.glob("usb[0-9]*/")]
+        hubs.sort(key=lambda hub: hub.busnum)
+        return [f"{hub.busnum}-{devnum}" for hub in hubs]
 
 
 def detach(vhci_port):
@@ -368,6 +376,19 @@ class _VhciStatus:
 
 
 def refresh_vhci_status():
+    for entry in _read_vhci_status():
+        _vhci_status[entry.vhci_port] = _VhciStatus(entry.attached, entry.busid)
+
+
+@dataclasses.dataclass
+class _VhciStatusEntry:
+    hub: str
+    vhci_port: int
+    attached: bool
+    busid: str
+
+
+def _read_vhci_status():
     vhci_path = pathlib.Path("/sys/devices/platform/vhci_hcd.0")
     if not vhci_path.exists():
         return
@@ -391,10 +412,31 @@ def refresh_vhci_status():
 
             for line in f:
                 entries = line.split()
-                port = int(entries[1])
-                status = int(entries[2])
-                busid = entries[6]
-                _vhci_status[port] = _VhciStatus(status == status_attached, busid)
+                yield _VhciStatusEntry(
+                    hub=entries[0],
+                    vhci_port=int(entries[1]),
+                    attached=int(entries[2]) == status_attached,
+                    busid=entries[6],
+                )
+
+
+async def usb_ports():
+    """List all port_nums with their busids and which hub is in use"""
+
+    await _ensure_vhci_hcd_driver_available()
+    layout = _VhciLayout.from_sysfs()
+    used = {}
+    for entry in _read_vhci_status():
+        if entry.attached:
+            port_num = layout.to_port_num(entry.vhci_port)
+            used.setdefault(port_num, set()).add(entry.hub)
+
+    ports = []
+    for port_num in range(layout.num_port_nums):
+        hs, ss = layout.to_busids(port_num)
+        used_hubs = [hub for hub in ("hs", "ss") if hub in used.get(port_num, ())]
+        ports.append({"port_num": port_num, "hs": hs, "ss": ss, "used": used_hubs})
+    return ports
 
 
 def is_attached(vhci_port):
