@@ -286,7 +286,15 @@ async def _login_command(args):
                 f"{Format.RESET}"
             )
 
-        claims = await login.finish()
+        try:
+            claims = await login.finish()
+        except asyncio.CancelledError:
+            print(
+                f"\n{Format.YELLOW}"
+                "Login canceled, the link above is no longer valid."
+                f"{Format.RESET}"
+            )
+            raise
 
         msg = "Login was successful"
         if claims:
