@@ -49,6 +49,11 @@ def run_hub():
         uvicorn.main([f"--fd={fd}", __name__ + ":asgi_app"])
 
 
+# The state is generated with secrets.token_urlsafe(), which is 43 chars
+# long. Allow twice that.
+_MAX_OIDC_STATE_LEN = 86
+
+
 async def asgi_app(scope, receive, send):
     if scope["type"] == "lifespan":
         # asgineer doesn't expose the lifespan hooks. Handle them here
@@ -412,6 +417,10 @@ class Hub:
         return self._authenticators[agent_id].get_user_name() or f"<{agent_id}>"
 
     async def get_authentication_response(self, state):
+        # Callers aren't authenticated, so limit the size
+        if not isinstance(state, str) or len(state) > _MAX_OIDC_STATE_LEN:
+            raise RuntimeError("Invalid state")
+
         future = asyncio.get_running_loop().create_future()
         self._pending_callbacks[state] = future
         try:
