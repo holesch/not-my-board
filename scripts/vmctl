@@ -118,6 +118,7 @@ EOF
         --no-progress \
         alpine-base \
         alpine-conf \
+        bash \
         doas \
         "linux-$kernel_variant" \
         linux-firmware-none \
@@ -125,7 +126,9 @@ EOF
         py3-meson-python \
         py3-pip \
         python3 \
+        tmux \
         tzdata \
+        zsh \
         ;
 
     chroot "$mnt" /usr/bin/env - \
