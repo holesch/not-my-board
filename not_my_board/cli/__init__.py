@@ -48,12 +48,10 @@ def main():
     def add_subcommand(name, *args, **kwargs):
         subparser = subparsers.add_parser(name, *args, **kwargs)
         subparser.set_defaults(func=globals()[f"_{name}_command"])
-        return subparser
-
-    def add_verbose_arg(subparser):
         subparser.add_argument(
             "-v", "--verbose", action="store_true", help="Enable debug logs"
         )
+        return subparser
 
     def add_cacert_arg(subparser):
         subparser.add_argument(
@@ -64,12 +62,10 @@ def main():
         ).complete = shtab.FILE
 
     subparser = add_subcommand("hub", help="start the board farm hub")
-    subparser.set_defaults(verbose=True)
 
     subparser = add_subcommand(
         "export", help="make connected boards available in the board farm"
     )
-    subparser.set_defaults(verbose=True)
     add_cacert_arg(subparser)
     subparser.add_argument("--token-cmd", help="generate ID tokens with shell command")
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
@@ -78,7 +74,6 @@ def main():
     ).complete = shtab.FILE
 
     subparser = add_subcommand("agent", help="start an agent")
-    subparser.set_defaults(verbose=True)
     add_cacert_arg(subparser)
     subparser.add_argument("--token-cmd", help="generate ID tokens with shell command")
     subparser.add_argument(
@@ -87,20 +82,17 @@ def main():
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
 
     subparser = add_subcommand("reserve", help="reserve a place")
-    add_verbose_arg(subparser)
     subparser.add_argument("-n", "--with-name", help="reserve under a different name")
     subparser.add_argument(
         "import_description", help="name or full path of an import description"
     ).complete = completion.import_descriptions_with_places()
 
     subparser = add_subcommand("return", help="return a place")
-    add_verbose_arg(subparser)
     subparser.add_argument("name", help="name of the place to return").complete = (
         completion.reservations()
     )
 
     subparser = add_subcommand("attach", help="attach a reserved place")
-    add_verbose_arg(subparser)
     subparser.add_argument(
         "-k",
         "--keep-others",
@@ -112,7 +104,6 @@ def main():
     ).complete = completion.reservations_or_import_descriptions()
 
     subparser = add_subcommand("detach", help="detach a reserved place")
-    add_verbose_arg(subparser)
     subparser.add_argument(
         "-k", "--keep", action="store_true", help="don't return reservation"
     )
@@ -121,13 +112,11 @@ def main():
     ).complete = completion.reservations()
 
     subparser = add_subcommand("list", help="list reserved places")
-    add_verbose_arg(subparser)
     subparser.add_argument(
         "-n", "--no-header", action="store_true", help="Hide table header"
     )
 
     subparser = add_subcommand("search", help="list available boards")
-    add_verbose_arg(subparser)
     subparser.add_argument(
         "import_description",
         nargs="?",
@@ -136,10 +125,8 @@ def main():
 
     # internal subcommand for shell completion, hidden from help
     subparser = add_subcommand("imports")
-    add_verbose_arg(subparser)
 
     subparser = add_subcommand("show", help="show place")
-    add_verbose_arg(subparser)
     subparser.add_argument(
         "-j", "--json", action="store_true", help="format output as JSON"
     )
@@ -150,28 +137,23 @@ def main():
     subparser = add_subcommand(
         "status", help="show status of attached places and its interfaces"
     )
-    add_verbose_arg(subparser)
     subparser.add_argument(
         "-n", "--no-header", action="store_true", help="Hide table header"
     )
 
     subparser = add_subcommand("uevent", help="handle Kernel uevent for USB devices")
-    add_verbose_arg(subparser)
     subparser.add_argument("devpath", help="devpath attribute of uevent")
 
     subparser = add_subcommand("login", help="log in to a hub")
-    add_verbose_arg(subparser)
     add_cacert_arg(subparser)
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
 
     subparser = add_subcommand("edit", help="edit a reserved place")
-    add_verbose_arg(subparser)
     subparser.add_argument("name", help="name of the place to edit").complete = (
         completion.reservations()
     )
 
     subparser = add_subcommand("who", help="show who has currently reserved a place")
-    add_verbose_arg(subparser)
     subparser.add_argument(
         "-n", "--no-header", action="store_true", help="Hide table header"
     )
@@ -190,7 +172,7 @@ def main():
     try:
         obj = args.func(args)
         if asyncio.iscoroutine(obj):
-            util.run(obj, debug=True)
+            util.run(obj, debug=args.verbose)
     except KeyboardInterrupt:
         pass
 
