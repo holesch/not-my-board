@@ -389,9 +389,14 @@ ssh_vm() {
         *) usage_error "unrecognized vm"
     esac
 
+    # Reuse the connection between invocations. Keep the control socket
+    # path short, as sockets have a low path length limit.
     "$run" ssh \
         -p "$port" \
         -oConnectTimeout=1 \
+        -oControlMaster=auto \
+        -oControlPersist=10 \
+        -oControlPath="${XDG_RUNTIME_DIR:-/tmp}/vmctl-%C" \
         -oUserKnownHostsFile="$vmctldir/known_hosts" \
         admin@localhost "$@"
 }
