@@ -269,8 +269,7 @@ async def _uevent_command(args):
 
 async def _login_command(args):
     http_client = http.Client(args.cacert)
-    token_store_path = "/var/lib/not-my-board/auth_tokens.json"  # noqa: S105
-    async with auth.LoginFlow(args.hub_url, http_client, token_store_path) as login:
+    async with auth.LoginFlow(args.hub_url, http_client, TOKEN_STORE_PATH) as login:
         print(
             f"{Format.BOLD}"
             "Open the following link in your browser and log in:"
