@@ -1,5 +1,6 @@
 import asyncio
 import shlex
+from typing import NamedTuple
 
 import pytest
 
@@ -7,6 +8,7 @@ import not_my_board._util as util
 
 WORKDIR = "/home/admin/completion"
 PROMPT = "$ "
+MARKER = "#"
 
 
 @pytest.fixture(scope="module")
@@ -68,6 +70,11 @@ _SHELL_SETUP = {
 }
 
 
+class Completion(NamedTuple):
+    line: str
+    candidates: set
+
+
 class Shell:
     """Interactive shell running in tmux on the client VM"""
 
@@ -97,26 +104,19 @@ class Shell:
         )
 
     async def complete(self, line):
-        """Type the line and press Tab"""
+        """Type the line, press Tab and return the result as a Completion"""
         await self.reset()
         await self._tmux("send-keys", "-l", line)
         await self._tmux("send-keys", "Tab")
-
-    async def expect_line(self, expected):
-        await self._wait_for(lambda: self._line == expected, f"line {expected!r}")
-
-    async def expect_candidates(self, expected):
-        expected = set(expected)
-        await self._wait_for(
-            lambda: self._candidates == expected, f"candidates {expected}"
-        )
-
-    async def expect_no_completion(self, line):
         # Type a marker after Tab. The shell processes keys in order, so once
         # the marker shows up, the completion is done.
-        await self._tmux("send-keys", "-l", "#")
-        await self.expect_line(line + "#")
-        assert self._candidates == set()
+        await self._tmux("send-keys", "-l", MARKER)
+        await self._wait_for(
+            lambda: (self._line or "").endswith(MARKER), "completion to finish"
+        )
+        # The shell may add a space after a unique completion
+        completed = self._line.removesuffix(MARKER).rstrip()
+        return Completion(completed, self._candidates)
 
     @property
     def _line(self):
@@ -164,57 +164,57 @@ def xfail_bash(request, shell):
 
 
 async def test_reservation_name(shell):
-    await shell.complete("not-my-board return r")
-    await shell.expect_line("not-my-board return res1")
+    completion = await shell.complete("not-my-board return r")
+    assert completion.line == "not-my-board return res1"
 
 
 async def test_import_description_name(shell):
-    await shell.complete("not-my-board search bo")
-    await shell.expect_line("not-my-board search board")
+    completion = await shell.complete("not-my-board search bo")
+    assert completion.line == "not-my-board search board"
 
 
 async def test_file_in_current_directory(shell):
-    await shell.complete("not-my-board search my")
-    await shell.expect_line("not-my-board search ./myboard.toml")
+    completion = await shell.complete("not-my-board search my")
+    assert completion.line == "not-my-board search ./myboard.toml"
 
 
 async def test_directory_in_current_directory(shell):
-    await shell.complete("not-my-board search su")
-    await shell.expect_line("not-my-board search ./sub/")
+    completion = await shell.complete("not-my-board search su")
+    assert completion.line == "not-my-board search ./sub/"
 
 
 async def test_file_in_subdirectory(shell):
-    await shell.complete("not-my-board search sub/")
-    await shell.expect_line("not-my-board search sub/x.toml")
+    completion = await shell.complete("not-my-board search sub/")
+    assert completion.line == "not-my-board search sub/x.toml"
 
 
 async def test_search_candidates(shell):
-    await shell.complete("not-my-board search ")
-    await shell.expect_candidates(["board", "myboard.toml", "sub/"])
+    completion = await shell.complete("not-my-board search ")
+    assert completion.candidates == {"board", "myboard.toml", "sub/"}
 
 
 async def test_attach_candidates(shell):
-    await shell.complete("not-my-board attach ")
-    await shell.expect_candidates(["board", "res1", "myboard.toml", "sub/"])
+    completion = await shell.complete("not-my-board attach ")
+    assert completion.candidates == {"board", "res1", "myboard.toml", "sub/"}
 
 
 async def test_search_has_no_place_name(request, shell):
     xfail_bash(request, shell)
-    await shell.complete("not-my-board search board@")
-    await shell.expect_no_completion("not-my-board search board@")
+    completion = await shell.complete("not-my-board search board@")
+    assert completion == Completion("not-my-board search board@", set())
 
 
 @pytest.mark.parametrize("command", ["reserve", "attach"])
 async def test_import_description_with_place_name(request, shell, command):
     xfail_bash(request, shell)
-    await shell.complete(f"not-my-board {command} board@p")
-    await shell.expect_line(f"not-my-board {command} board@place")
+    completion = await shell.complete(f"not-my-board {command} board@p")
+    assert completion.line == f"not-my-board {command} board@place"
 
 
 async def test_place_name(request, shell):
     xfail_bash(request, shell)
-    await shell.complete("not-my-board show @p")
-    await shell.expect_line("not-my-board show @place")
+    completion = await shell.complete("not-my-board show @p")
+    assert completion.line == "not-my-board show @place"
 
 
 async def test_candidates_are_not_expanded(completion_farm, shell):
@@ -222,8 +222,8 @@ async def test_candidates_are_not_expanded(completion_farm, shell):
     malicious = shlex.quote(".config/not-my-board/$(id>pwned).toml")
     await client.ssh(shlex.quote(f"touch {malicious}"))
     try:
-        await shell.complete("not-my-board search bo")
-        await shell.expect_line("not-my-board search board")
+        completion = await shell.complete("not-my-board search bo")
+        assert completion.line == "not-my-board search board"
         result = await client.ssh(f"test -e {WORKDIR}/pwned", check=False)
         assert result.returncode != 0
     finally:
@@ -231,5 +231,5 @@ async def test_candidates_are_not_expanded(completion_farm, shell):
 
 
 async def test_no_matching_place_name(shell):
-    await shell.complete("not-my-board reserve board@bo")
-    await shell.expect_no_completion("not-my-board reserve board@bo")
+    completion = await shell.complete("not-my-board reserve board@bo")
+    assert completion == Completion("not-my-board reserve board@bo", set())
