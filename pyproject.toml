@@ -46,7 +46,7 @@ Issues = "https://github.com/holesch/not-my-board/issues"
 Source = "https://github.com/holesch/not-my-board"
 
 [project.scripts]
-not-my-board = "not_my_board.cli:main"
+not-my-board = "not_my_board._cli:main"
 
 [project.optional-dependencies]
 test = [
