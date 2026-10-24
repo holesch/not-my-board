@@ -8,7 +8,6 @@ import logging
 import pathlib
 import shutil
 import socket
-import traceback
 import urllib.parse
 import weakref
 from collections.abc import Mapping
@@ -34,6 +33,7 @@ class AgentIO:
     async def hub_rpc(self):
         url = f"{self._hub_url}/ws"
         async with jsonrpc.WebsocketChannel(url, self._http) as rpc:
+            logger.info("Connected to hub %s from %s", self._hub_url, rpc.local_ip)
             yield rpc
 
     @contextlib.asynccontextmanager
@@ -189,6 +189,7 @@ class Agent(util.ContextStack):
             self._reservations[name] = _Reservation(
                 import_description_toml, place, tunnels, auto_return_task
             )
+            logger.info('Reserved place @%s as "%s"', place.name, name)
 
     async def return_reservation(self, name, force=False):
         async with self._reservation(name) as reservation:
@@ -200,6 +201,7 @@ class Agent(util.ContextStack):
             await self._hub.return_reservation(reservation.place.id)
             await util.cancel_tasks([reservation.auto_return_task])
             del self._reservations[name]
+            logger.info('Returned place @%s ("%s")', reservation.place.name, name)
 
     async def attach(self, name):
         async with self._reservation(name) as reservation:
@@ -236,8 +238,9 @@ class Agent(util.ContextStack):
                     await self._detach_reservation(reservation)
                 await self._hub.return_reservation(reservation.place.id)
                 del self._reservations[name]
+                logger.info('Returned place @%s ("%s")', reservation.place.name, name)
         except Exception as e:
-            logger.warning("Auto return failed: %s", e)
+            logger.warning('Auto return of "%s" failed: %s', name, e)
 
     @contextlib.asynccontextmanager
     async def _name_lock(self, name):
@@ -345,6 +348,7 @@ class Agent(util.ContextStack):
             # everything ok: update reservation
             reservation.import_description_toml = import_description_toml
             reservation.tunnels = new_tunnels
+            logger.info('Updated import description of "%s"', name)
 
     async def search(self, import_description_toml=None):
         places = await self._io.get_places()
@@ -500,7 +504,15 @@ class _Tunnel:
 
     async def open(self):
         if not self._task:
-            logger.debug("%s: Opening %s tunnel", self.name, self.type_name)
+            proxy_host, proxy_port = self._proxy
+            logger.info(
+                "%s: Opening %s tunnel to %s via %s:%d",
+                self.name,
+                self.type_name,
+                self._target_str,
+                proxy_host,
+                proxy_port,
+            )
             self._ready_event.clear()
             self._task = asyncio.create_task(self._task_func())
             self._task.add_done_callback(self._task_done_callback)
@@ -515,6 +527,7 @@ class _Tunnel:
 
     async def close(self):
         if self._task:
+            logger.info("%s: Closing %s tunnel", self.name, self.type_name)
             await util.cancel_tasks([self._task])
 
     def is_attached(self):
@@ -535,11 +548,17 @@ class _UsbTunnel(_Tunnel):
         while True:
             try:
                 await self._attach()
-                logger.debug("%s: USB device attached", self.name)
+                logger.info("%s: USB device attached", self.name)
                 self._ready_event.set()
                 retry_timeout = 1
-            except Exception:
-                traceback.print_exc()
+            except Exception as e:
+                logger.warning(
+                    "%s: Attaching USB device failed, retrying in %d s: %s",
+                    self.name,
+                    retry_timeout,
+                    e,
+                    exc_info=logger.isEnabledFor(logging.DEBUG),
+                )
                 await asyncio.sleep(retry_timeout)
                 retry_timeout = min(2 * retry_timeout, 30)
 
@@ -563,6 +582,10 @@ class _UsbTunnel(_Tunnel):
             except asyncio.TimeoutError:
                 attach_timeout = min(2 * attach_timeout, 30)
 
+    @property
+    def _target_str(self):
+        return f"USB device {self.usbid}"
+
     def is_attached(self):
         if self._vhci_port is None:
             return False
@@ -579,9 +602,22 @@ class _UsbTunnel(_Tunnel):
 
 class _TcpTunnel(_Tunnel):
     async def _task_func(self):
-        await self._io.port_forward(
-            self._ready_event, self._proxy, self.remote, self.local_port
+        ready_event = asyncio.Event()
+        coro = self._io.port_forward(
+            ready_event, self._proxy, self.remote, self.local_port
         )
+        async with util.background_task(coro) as task:
+            await ready_event.wait()
+            logger.info(
+                "%s: TCP tunnel listening on localhost:%d", self.name, self.local_port
+            )
+            self._ready_event.set()
+            await task
+
+    @property
+    def _target_str(self):
+        host, port = self.remote
+        return f"{host}:{port}"
 
     @property
     def port(self):

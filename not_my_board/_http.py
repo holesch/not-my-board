@@ -365,6 +365,10 @@ class _WebsocketConnection:
     async def __aexit__(self, exc_type, exc, tb):
         pass
 
+    @property
+    def local_ip(self):
+        return self._writer.get_extra_info("sockname")[0]
+
     async def send(self, data):
         if isinstance(data, str):
             async with self._send_context():

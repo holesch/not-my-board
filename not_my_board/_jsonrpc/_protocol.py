@@ -126,7 +126,7 @@ class Channel(util.ContextStack):
                 if getattr(method, "_jsonrpc_hidden", False):
                     raise ProtocolError(f'method "{request.method}" is marked hidden')
 
-                logger.info("Method call: %s", request.method)
+                logger.debug("Method call: %s", request.method)
 
             next_error = CODE_INTERNAL_ERROR, None
             if request.id is not None:
@@ -180,7 +180,7 @@ class Channel(util.ContextStack):
             raise RuntimeError("Use either args or kwargs")
 
         request = Request(id_, method_name, args or kwargs)
-        logger.info("Calling: %s", request.method)
+        logger.debug("Calling: %s", request.method)
 
         if id_ is not None:
             return await self._send_request(request)
@@ -196,7 +196,7 @@ class Channel(util.ContextStack):
             return await self._pending[request.id]
         except asyncio.CancelledError:
             if send_cancellation:
-                logger.info("Canceling: %s", request.method)
+                logger.debug("Canceling: %s", request.method)
                 await self._cancel_remote(request.id)
             raise
         finally:

@@ -19,6 +19,10 @@ class WebsocketChannel(Channel, util.ContextStack):
         if self._start:
             await super()._context_stack(stack)
 
+    @property
+    def local_ip(self):
+        return self._ws.local_ip
+
     async def _ws_receive_iter(self):
         async for message in self._ws.receive_iter():
             yield message

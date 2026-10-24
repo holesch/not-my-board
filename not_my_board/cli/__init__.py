@@ -47,7 +47,9 @@ def main():
 
     def add_subcommand(name, *args, **kwargs):
         subparser = subparsers.add_parser(name, *args, **kwargs)
-        subparser.set_defaults(func=globals()[f"_{name}_command"])
+        subparser.set_defaults(
+            func=globals()[f"_{name}_command"], log_level=logging.WARNING
+        )
         subparser.add_argument(
             "-v", "--verbose", action="store_true", help="Enable debug logs"
         )
@@ -62,10 +64,12 @@ def main():
         ).complete = shtab.FILE
 
     subparser = add_subcommand("hub", help="start the board farm hub")
+    subparser.set_defaults(log_level=logging.INFO)
 
     subparser = add_subcommand(
         "export", help="make connected boards available in the board farm"
     )
+    subparser.set_defaults(log_level=logging.INFO)
     add_cacert_arg(subparser)
     subparser.add_argument("--token-cmd", help="generate ID tokens with shell command")
     subparser.add_argument("hub_url", help="http(s) URL of the hub")
@@ -74,6 +78,7 @@ def main():
     ).complete = shtab.FILE
 
     subparser = add_subcommand("agent", help="start an agent")
+    subparser.set_defaults(log_level=logging.INFO)
     add_cacert_arg(subparser)
     subparser.add_argument("--token-cmd", help="generate ID tokens with shell command")
     subparser.add_argument(
@@ -166,7 +171,7 @@ def main():
             if not attr.startswith("_"):
                 setattr(Format, attr, "")
 
-    level = logging.DEBUG if args.verbose else logging.WARNING
+    level = logging.DEBUG if args.verbose else args.log_level
     util.configure_logging(level)
 
     try:

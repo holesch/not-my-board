@@ -55,11 +55,12 @@ class Exporter(util.ContextStack):
         self._hub = await stack.enter_async_context(
             jsonrpc.WebsocketChannel(url, self._http, api_obj=self)
         )
+        logger.info("Connected to hub %s from %s", self._hub_url, self._hub.local_ip)
 
     @jsonrpc.hidden
     async def register_place(self):
         place_id = await self._hub.register_place(self._place.dict())
-        logger.info("Place registered with ID %d", place_id)
+        logger.info("Place @%s registered with ID %d", self._place.name, place_id)
         return place_id
 
     @jsonrpc.hidden
@@ -100,30 +101,34 @@ class Exporter(util.ContextStack):
             task.add_done_callback(tasks.discard)
 
             target, trailing_data = await con.receive_target()
-            logger.info("Proxy CONNECT target: %s", target.decode())
+            logger.debug("Proxy CONNECT target from %s: %s", client_ip, target.decode())
 
-            await self._tunnel(reader, writer, target, trailing_data)
+            await self._tunnel(reader, writer, client_ip, target, trailing_data)
         else:
-            logger.debug(
-                "Denying request for client %s, expected %s",
+            logger.info(
+                "Denying request from %s, allowed: %s",
                 client_ip,
-                list(self._ip_to_tasks_map),
+                ", ".join(map(str, self._ip_to_tasks_map)) or "none",
             )
             await con.deny_request()
 
-    async def _tunnel(self, client_r, client_w, target, trailing_data):
-        if target == b"usb.not-my-board.localhost:3240":
+    async def _tunnel(self, client_r, client_w, client_ip, target, trailing_data):
+        if target in self._usb_target:
             if trailing_data:
                 raise ProtocolError("USB/IP implementation cannot handle trailing data")
             await self._usbip_server.handle_client(client_r, client_w)
         else:
             host, port = target.split(b":", 1)
             port = int(port)
+            target_str = target.decode()
 
+            logger.info("%s requests TCP tunnel to %s", client_ip, target_str)
             async with util.connect(host, port) as (remote_r, remote_w):
+                logger.info("Opened TCP tunnel from %s to %s", client_ip, target_str)
                 remote_w.write(trailing_data)
                 await remote_w.drain()
                 await util.relay_streams(client_r, client_w, remote_r, remote_w)
+            logger.info("Closed TCP tunnel from %s to %s", client_ip, target_str)
 
     async def get_id_token(self):
         return await self._token_src.get_id_token()
