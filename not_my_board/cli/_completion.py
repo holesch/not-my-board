@@ -61,9 +61,19 @@ _shtab_not_my_board_find_import_descriptions() {
 def _get_bash_preamble():
     """Return bash-specific completion wrapper."""
     return """
+# Print the lines from stdin, that start with $1. Unlike compgen -W, this
+# doesn't expand the candidates, which might come from untrusted sources.
+_shtab_not_my_board_filter_bash() {
+    local line
+    while IFS= read -r line; do
+        [[ "$line" == "$1"* ]] && printf '%s\\n' "$line"
+    done
+    return 0
+}
+
 _shtab_not_my_board_complete_import_descriptions_bash() {
-    local names=$(_shtab_not_my_board_find_import_descriptions | sort -u)
-    compgen -W "$names" -- "${COMP_WORDS[COMP_CWORD]}"
+    _shtab_not_my_board_find_import_descriptions | sort -u |
+        _shtab_not_my_board_filter_bash "${COMP_WORDS[COMP_CWORD]}"
 }
 """
 
