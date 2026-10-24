@@ -29,6 +29,7 @@ class UsbIpServer(util.ContextStack):
     async def handle_client(self, reader, writer):
         sock = writer.transport.get_extra_info("socket")
         _enable_keep_alive(sock)
+        client_ip = writer.transport.get_extra_info("peername")[0]
 
         request = await ImportRequest.from_reader(reader)
         logger.debug("Received: %s", request)
@@ -36,11 +37,12 @@ class UsbIpServer(util.ContextStack):
             raise ProtocolError(f"Unexpected Bus ID: {request.busid}")
 
         device = self._devices[request.busid]
+        busid = device.busid.decode()
 
         # allow client to trigger a refresh
         device.refresh()
 
-        logger.info("Client requests device at %s", device.busid.decode())
+        logger.info("%s requests USB device %s", client_ip, busid)
         watcher = util.background_task(self._watch_reader(reader))
         try:
             async with watcher as watcher_task, device:
@@ -48,6 +50,7 @@ class UsbIpServer(util.ContextStack):
                 writer.transport.pause_reading()
                 fd = sock.fileno()
                 device.export(fd)
+                logger.info("Exported USB device %s to %s", busid, client_ip)
 
                 reply = ImportReply.from_device(device)
                 logger.debug("Sending: %s", reply)
@@ -57,10 +60,9 @@ class UsbIpServer(util.ContextStack):
                 writer.close()
                 await writer.wait_closed()
                 await device.available()
+                logger.info("USB device %s released by %s", busid, client_ip)
         except ConnectionClosedError:
-            logger.info(
-                "Client stopped waiting for device at %s", device.busid.decode()
-            )
+            logger.info("%s stopped waiting for USB device %s", client_ip, busid)
 
     @staticmethod
     async def _watch_reader(reader):
