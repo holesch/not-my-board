@@ -90,6 +90,11 @@ async def status():
         return await agent.status()
 
 
+async def usb_ports():
+    async with agent_channel() as agent:
+        return await agent.usb_ports()
+
+
 async def edit(name):
     async with agent_channel() as agent:
         import_description_toml = await agent.get_import_description(name)

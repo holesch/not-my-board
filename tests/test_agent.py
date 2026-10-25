@@ -183,6 +183,13 @@ class FakeAgentIO:
         self.detach_event[port_num] = asyncio.Event()
         return port_num
 
+    @staticmethod
+    async def usbip_usb_ports():
+        return [
+            {"port_num": port_num, "hs": f"2-{n}", "ss": f"3-{n}", "used": []}
+            for port_num, n in ((0, 1), (1, 2))
+        ]
+
     async def usbip_detach(self, vhci_port):
         if vhci_port in self.attached:
             del self.attached[vhci_port]
@@ -298,6 +305,36 @@ async def test_status_place_1_attached(agent_io):
     assert status[0]["attached"] is True
     assert status[1]["attached"] is True
     assert "2-1" in [s["port"] for s in status]
+
+
+def unused_port(port_num):
+    n = port_num + 1
+    return {
+        "port_num": port_num,
+        "hs": f"2-{n}",
+        "ss": f"3-{n}",
+        "used": [],
+        "place": None,
+        "part": None,
+        "interface": None,
+    }
+
+
+async def test_idle_usb_ports(agent_io):
+    usb_ports = await agent_io.agent_api.usb_ports()
+    assert usb_ports == [unused_port(0), unused_port(1)]
+
+
+async def test_usb_ports_place_1(agent_io):
+    agent_io.places = [PLACE_1]
+    await agent_io.agent_api.reserve("fake", IMPORT_DESC_1)
+    usb_ports = await agent_io.agent_api.usb_ports()
+    port_1 = unused_port(1) | {
+        "place": "fake",
+        "part": "fake-board",
+        "interface": "usb0",
+    }
+    assert usb_ports == [unused_port(0), port_1]
 
 
 async def test_reserve_twice(agent_io):

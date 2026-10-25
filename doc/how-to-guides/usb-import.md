@@ -13,7 +13,9 @@ usb.usb-serial = { port_num = 1 }
 ```
 
 Just count up the `port_num` for every USB interface. With the Kernel defaults
-there are `8` ports available.
+there are `8` ports available. Use `not-my-board usb-ports --all` to list the
+available ports, and to see which of them are in use. See the
+[command line reference](../reference/cli.md) for details.
 
 Finally, reserve and attach the place:
 ```console

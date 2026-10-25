@@ -45,6 +45,17 @@ Here's a description of all the commands and options `not-my-board` supports.
 **`status`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-n`**|**`--no-header`**\]
 : Show status of attached places and its interfaces.
 
+**`usb-ports`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] \[**`-a`**|**`--all`**\] \[**`-n`**|**`--no-header`**\]
+: List the USB ports available for importing USB devices. Every
+  [`port_num`](./import-description.md#partspart-nameusbif-nameport_num) behaves
+  like a physical USB 3 port: It has a high speed (*HS*) and a super speed (*SS*)
+  busid, and a device is attached to either one of them, depending on its speed.
+  The *Used* column shows which of them is in use. If both are in use, then two
+  devices are attached to the same `port_num`, which should be avoided. The
+  *Place*, *Part* and *Interface* columns show which reserved interface uses the
+  `port_num`. Ports, that are neither in use nor reserved, are hidden unless
+  {option}`--all <not-my-board --all>` is given.
+
 **`edit`** \[**`-h`**|**`--help`**\] \[**`-v`**|**`--verbose`**\] *name*
 : Edit the import description of a reserved or attached place. It opens a
   temporary file with the current import description with the configured editor.
@@ -134,6 +145,10 @@ Don't return all other reservations.
 
 ```{option} -k, --keep
 Don't return reservation.
+```
+
+```{option} -a, --all
+Show unused ports, too.
 ```
 
 ```{option} -n, --no-header

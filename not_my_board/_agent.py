@@ -99,6 +99,10 @@ class AgentIO:
     async def usbip_detach(vhci_port):
         usbip.detach(vhci_port)
 
+    @staticmethod
+    async def usbip_usb_ports():
+        return await usbip.usb_ports()
+
     async def port_forward(self, ready_event, proxy, target, local_port):
         connection_handler = functools.partial(
             self._handle_port_forward_client, proxy, target
@@ -285,6 +289,23 @@ class Agent(util.ContextStack):
             for name, reservation in self._reservations.items()
             for tunnel in reservation.tunnels.values()
         ]
+
+    async def usb_ports(self):
+        # port_nums are unique, so there is at most one tunnel per port_num
+        tunnels = {
+            tunnel.port_num: tunnel
+            for reservation in self._reservations.values()
+            for tunnel in reservation.tunnels.values()
+            if isinstance(tunnel, _UsbTunnel)
+        }
+
+        ports = await self._io.usbip_usb_ports()
+        for port in ports:
+            tunnel = tunnels.get(port["port_num"])
+            port["place"] = tunnel.place_name if tunnel else None
+            port["part"] = tunnel.part_name if tunnel else None
+            port["interface"] = tunnel.iface_name if tunnel else None
+        return ports
 
     async def get_import_description(self, name):
         async with self._reservation(name) as reservation:
