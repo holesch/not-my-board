@@ -3,7 +3,11 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import pathlib
+import shlex
+import shutil
+import subprocess
 import sys
 
 import shtab
@@ -388,7 +392,23 @@ def _print_table(args, headers, entries, row_func):
             headers[-1] = f"{headers[-1]}{Format.RESET}"
 
         rows = [row_func(entry) for entry in entries]
-        print(tabulate.tabulate(rows, headers=headers, tablefmt="plain"))
+        _print_paged(tabulate.tabulate(rows, headers=headers, tablefmt="plain"))
+
+
+def _print_paged(text):
+    if sys.stdout.isatty() and text.count("\n") >= shutil.get_terminal_size().lines:
+        # Quit if the output fits on one screen, don't clear the screen, and
+        # interpret color escape sequences
+        env = {"LESS": "FRX", **os.environ}
+        pager = shlex.split(os.environ.get("PAGER") or "less")
+        try:
+            subprocess.run(pager, input=text + "\n", text=True, env=env, check=False)
+        except OSError as e:
+            logger.warning("Can't run pager %s: %s", pager[0], e)
+        else:
+            return
+
+    print(text)
 
 
 class Format:
